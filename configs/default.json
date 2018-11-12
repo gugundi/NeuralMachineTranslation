@@ -1,0 +1,12 @@
+{
+  "batch_size": 32,
+  "epochs": 100,
+  "loss_fn": "CrossEntropyLoss",
+  "name": "MUST BE UNIQUE FOR YOUR CONFIG!",
+  "optimizer": {
+    "momentum": 0.9,
+    "learning_rate": 0.001,
+    "type": "SGD",
+    "weight_decay": 0
+  }
+}
