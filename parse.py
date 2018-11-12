@@ -8,14 +8,14 @@ def parse_config(config):
     optimizer_config = config.get('optimizer')
     optimizer = get_optimizer(optimizer_config, model)
     loss_fn = get_loss_fn(config)
-    batch_size = config.get('batch_size')
-    epochs = config.get('epochs')
     return {
-        "batch_size": batch_size,
-        "epochs": epochs,
+        "batch_size": config.get('batch_size'),
+        "epochs": config.get('epochs'),
         "loss_fn": loss_fn,
         "model": model,
+        "name": config.get('name'),
         "optimizer": optimizer,
+        "training": config.get('training')
     }
 
 

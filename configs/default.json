@@ -8,5 +8,8 @@
     "learning_rate": 0.001,
     "type": "SGD",
     "weight_decay": 0
+  },
+  "training": {
+    "eval_every": 50
   }
 }

@@ -6,11 +6,14 @@ class Model(nn.Module):
 
     def __init__(self, *args, **kwargs):
         super(Model, self).__init__(*args, **kwargs)
-        self.tmp = nn.Linear(10, 10)
         # self.encoder = ...
         # self.decoder = ...
         # self.attention = ...
-        pass
+        self.tmp = nn.Linear(10, 10)
+        self.out = nn.Linear(10, 2)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
+        x = self.relu(self.tmp(x))
+        x = self.out(x)
         return x
