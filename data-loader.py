@@ -10,6 +10,9 @@ import spacy
 
 print("Started data-loader")
 
+!python -m spacy download de
+!python -m spacy download en
+
 # load tokenizers for german and english
 spacy_de = spacy.load('de')
 spacy_en = spacy.load('en')
