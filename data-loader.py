@@ -10,8 +10,8 @@ import spacy
 
 print("Started data-loader")
 
-!python -m spacy download de
-!python -m spacy download en
+# !python -m spacy download de
+# !python -m spacy download en
 
 # load tokenizers for german and english
 spacy_de = spacy.load('de')
@@ -19,12 +19,15 @@ spacy_en = spacy.load('en')
 
 url = re.compile('(<url>.*</url>)')
 
-def tokenize_x(language):
-    return lambda text: [token.text for token in spacy.load(language).tokenizer(url.sub('@URL@', text))]
+def tokenize_de(text):
+    return [token.text for token in spacy_de.tokenizer(url.sub('@URL@', text))]
+
+def tokenize_en(text):
+    return [token.text for token in spacy_en.tokenizer(url.sub('@URL@', text))]
 
 # set up fields for IWSLT
-DE_IWSLT = data.Field(tokenize=tokenize_x('de'))
-EN_IWSLT = data.Field(tokenize=tokenize_x('en'))
+DE_IWSLT = data.Field(tokenize=tokenize_de)
+EN_IWSLT = data.Field(tokenize=tokenize_en)
 
 print("Making splits for IWSLT")
 # make splits for data in IWSLT
