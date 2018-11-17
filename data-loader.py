@@ -35,8 +35,8 @@ train_iwslt, val_iwslt, test_iwslt = datasets.IWSLT.splits(exts=('.de', '.en'), 
 
 print("Building vocabulary for IWSLT")
 # build the vocabulary of IWSLT
-DE.build_vocab(train_iwslt.scr, min_freq=3)
-EN.build_vocab(train_iwslt.trg, max_size=20000)
+DE_IWSLT.build_vocab(train_iwslt.scr, min_freq=3)
+EN_IWSLT.build_vocab(train_iwslt.trg, max_size=50000)
 
 print("Making iterator splits for IWSLT")
 # make iterator for splits in IWSLT
