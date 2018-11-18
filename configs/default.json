@@ -1,10 +1,10 @@
 {
   "attention": {
-    "window_size": 1
+    "window_size": 3
   },
   "epochs": 16,
   "loss_fn": "NLLLoss",
-  "name": "MUST BE UNIQUE FOR YOUR CONFIG!",
+  "name": "default",
   "optimizer": {
     "momentum": 0.9,
     "learning_rate": 0.001,
@@ -19,7 +19,7 @@
   "source_vocabulary_size": 10000,
   "target_vocabulary_size": 10000,
   "training": {
-    "eval_every": 50,
-    "sample_every": 10000
+    "eval_every": 100,
+    "sample_every": 200
   }
 }
