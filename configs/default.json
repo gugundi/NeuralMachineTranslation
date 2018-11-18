@@ -1,7 +1,9 @@
 {
-  "batch_size": 32,
-  "epochs": 100,
-  "loss_fn": "CrossEntropyLoss",
+  "attention": {
+    "window_size": 1
+  },
+  "epochs": 16,
+  "loss_fn": "NLLLoss",
   "name": "MUST BE UNIQUE FOR YOUR CONFIG!",
   "optimizer": {
     "momentum": 0.9,
@@ -9,7 +11,15 @@
     "type": "SGD",
     "weight_decay": 0
   },
+  "rnn": {
+    "dropout": 0,
+    "hidden_size": 100,
+    "num_layers": 1
+  },
+  "source_vocabulary_size": 10000,
+  "target_vocabulary_size": 10000,
   "training": {
-    "eval_every": 50
+    "eval_every": 50,
+    "sample_every": 10000
   }
 }

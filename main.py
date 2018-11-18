@@ -8,35 +8,13 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+SOS = 1
+EOS = 2
 
-# generate random data for test script...
-class Data:
-
-    def __init__(self, text, label):
-        self.text = text
-        self.label = label
-
-
-class Iterator:
-
-    def __init__(self):
-        self.index = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.index >= 1000:
-            self.index = 0
-            raise StopIteration
-        self.index += 1
-        X = torch.rand(100, 10)
-        y = torch.zeros(100).long()
-        X_sum = torch.sum(X, 1)
-        ones = X_sum > 0.5
-        y[ones] = 1
-        data = Data(X, y)
-        return data
+train_iter = [
+    ([SOS, 3, 9, 4, 5, 10, EOS], [SOS, 9, 8, 6, 3, EOS]),
+    ([SOS, 11, 13, 5, 4, 7, 14, 15, EOS], [SOS, 99, 6, 123, 65, 900, 11, EOS]),
+]
 
 
 def main():
@@ -52,9 +30,7 @@ def main():
     name = parsed_config.get('name')
     writer_path = get_or_create_dir(main_path, f'.logs/{name}')
     # TODO: call data loader here
-    train_iter = Iterator()
-    val_iter = Iterator()
-    train(train_iter, val_iter, writer_path, parsed_config)
+    train(train_iter, train_iter, writer_path, parsed_config)
 
 
 def train(train_iter, val_iter, writer_path, parsed_config):
@@ -64,41 +40,118 @@ def train(train_iter, val_iter, writer_path, parsed_config):
     writer_val = SummaryWriter(log_dir=writer_val_path)
     epochs = parsed_config.get('epochs')
     loss_fn = parsed_config.get('loss_fn')
-    model = parsed_config.get('model')
-    optimizer = parsed_config.get('optimizer')
+    encoder, decoder = parsed_config['model']
+    encoder_optimizer, decoder_optimizer = parsed_config['optimizer']
     training = parsed_config.get('training')
     eval_every = training.get('eval_every')
+    sample_every = training.get('sample_every')
     step = 1
     for epoch in range(epochs):
-        for i, train_batch in enumerate(train_iter):
-            model.train()
-            output = model(train_batch.text)
-            batch_loss = loss_fn(output, train_batch.label)
-            optimizer.zero_grad()
-            batch_loss.backward()
-            optimizer.step()
+        for i, train_pair in enumerate(train_iter):
+            loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, train_pair)
 
             timestamp = time()
-            writer_train.add_scalar('loss', batch_loss, step, timestamp)
+            writer_train.add_scalar('loss', loss, step, timestamp)
 
             if (i + 1) % eval_every == 0:
-                model.eval()
                 val_losses = 0
                 val_lengths = 0
-                for val_batch in val_iter:
-                    val_output = model(val_batch.text)
-                    val_loss = loss_fn(val_output, val_batch.label)
+                for val_pair in val_iter:
+                    val_loss, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, val_pair)
                     val_losses += val_loss
                     val_lengths += 1
-
                 val_loss = val_losses / val_lengths
                 writer_val.add_scalar('loss', val_loss, step, timestamp)
+
+            if (i + 1) % sample_every == 0:
+                # TODO: sample and translate random sentences and log them to tensorboard
+                pass
 
             step += 1
 
 
-def test(model, validationset):
-    pass
+def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, pair):
+    encoder.train()
+    decoder.train()
+
+    loss = 0
+    source_sentence, target_sentence = pair
+    encoder_hidden = encoder.init_hidden()
+    source_sentence = torch.LongTensor(source_sentence)
+    source_sentence_length = source_sentence.size(0)
+    source_hiddens = torch.zeros(source_sentence_length, encoder.hidden_size)
+    target_sentence = torch.LongTensor(target_sentence)
+    target_sentence_length = target_sentence.size(0)
+
+    for i in range(source_sentence_length):
+        encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
+        source_hiddens[i] = encoder_output[0, 0]
+
+    decoder_input = torch.LongTensor([[SOS]])
+    decoder_hidden = encoder_hidden
+    context = encoder_hidden[0]
+
+    for i in range(target_sentence_length):
+        y, context, decoder_hidden = decoder(source_sentence_length, source_hiddens, decoder_input, context, decoder_hidden)
+        context = context.unsqueeze(0)
+        topv, topi = y.topk(1)
+        decoder_input = topi.detach()
+        target = target_sentence[i].view(1)
+        loss += loss_fn(y, target)
+        if decoder_input.item() == EOS:
+            break
+
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+    loss.backward()
+    encoder_optimizer.step()
+    decoder_optimizer.step()
+
+    return loss
+
+
+def evaluate_sentence_pair(encoder, decoder, loss_fn, pair):
+    with torch.no_grad():
+        encoder.eval()
+        decoder.eval()
+
+        loss = 0
+        source_sentence, target_sentence = pair
+        encoder_hidden = encoder.init_hidden()
+        source_sentence = torch.LongTensor(source_sentence)
+        source_sentence_length = source_sentence.size(0)
+        source_hiddens = torch.zeros(source_sentence_length, encoder.hidden_size)
+        target_sentence = torch.LongTensor(target_sentence)
+        target_sentence_length = target_sentence.size(0)
+
+        for i in range(source_sentence_length):
+            encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
+            source_hiddens[i] = encoder_output[0, 0]
+
+        decoded_words = []
+        decoder_input = torch.LongTensor([[SOS]])
+        decoder_hidden = encoder_hidden
+        context = encoder_hidden[0]
+
+        max_length = 3 * target_sentence_length
+        i = 0
+        while True:
+            y, context, decoder_hidden = decoder(source_sentence_length, source_hiddens, decoder_input, context, decoder_hidden)
+            context = context.unsqueeze(0)
+            topv, topi = y.topk(1)
+            decoder_input = topi
+            decoded_word = topi.item()
+            if i < target_sentence_length:
+                target = target_sentence[i].view(1)
+                loss += loss_fn(y, target)
+            if decoded_word == EOS:
+                break
+            decoded_words.append(decoded_word)
+            if (i + 1) > max_length:
+                break
+            i += 1
+
+        return loss, decoded_words
 
 
 def get_or_create_dir(base_path, dir_name):
