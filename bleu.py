@@ -1,12 +1,4 @@
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov 17 19:05:45 2018
-
-@author: Oldouz Majidi
-"""
-
 #Reference: https://github.com/tensorflow/nmt/blob/master/nmt/scripts/bleu.py
 
 """Python implementation of BLEU and smooth-BLEU.
