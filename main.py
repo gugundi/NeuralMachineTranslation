@@ -26,14 +26,14 @@ def main():
     SOS_token = '<SOS>'
     EOS_token = '<EOS>'
     train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token)
-    SOS = target_language.stoi[SOS_token]
-    EOS = target_language.stoi[EOS_token]
     parsed_config['source_vocabulary_size'] = len(source_language.itos)
     parsed_config['target_vocabulary_size'] = len(target_language.itos)
-    train(train_iter, val_iter, source_language, target_language, SOS, EOS, writer_path, parsed_config)
+    train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
 
 
-def train(train_iter, val_iter, source_language, target_language, SOS, EOS, writer_path, parsed_config):
+def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config):
+    SOS = target_language.stoi[SOS_token]
+    EOS = target_language.stoi[EOS_token]
     writer_train_path = get_or_create_dir(writer_path, 'train')
     writer_val_path = get_or_create_dir(writer_path, 'val')
     writer_train = SummaryWriter(log_dir=writer_train_path)
@@ -47,6 +47,9 @@ def train(train_iter, val_iter, source_language, target_language, SOS, EOS, writ
     sample_every = training.get('sample_every')
     step = 1
     for epoch in range(epochs):
+        train_iter.init_epoch()
+        val_iter.init_epoch()
+
         for i, train_pair in enumerate(train_iter):
             loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_pair)
 
@@ -68,7 +71,7 @@ def train(train_iter, val_iter, source_language, target_language, SOS, EOS, writ
                     if j == 5:
                         break
                     _, translation = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
-                    text = get_text(source_language, target_language, val_pair.src, val_pair.trg, translation)
+                    text = get_text(source_language, target_language, val_pair.src, val_pair.trg, translation, SOS_token, EOS_token)
                     writer_val.add_text('translation', text, step, timestamp)
 
             step += 1
@@ -156,11 +159,23 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
         return loss, decoded_words
 
 
-def get_text(source_language, target_language, source, target, translation):
-    source = get_sentence(source_language, list(source.squeeze()))
-    target = get_sentence(target_language, list(target.squeeze()))
+def torch2text(language, sentence, SOS_token, EOS_token):
+    sentence = sentence.squeeze()
+    sentence = map(lambda idx: language.itos[idx], sentence)
+    sentence = filter(lambda word: word != SOS_token and word != EOS_token, sentence)
+    sentence = " ".join(sentence)
+    return sentence
+
+
+def get_text(source_language, target_language, source, target, translation, SOS_token, EOS_token):
+    source = torch2text(source_language, source, EOS_token, SOS_token)
+    target = torch2text(target_language, target, EOS_token, SOS_token)
     translation = get_sentence(target_language, translation)
-    return f'Source: "{source}"\nTarget: "{target}"\nTranslation: "{translation}"'
+    return f"""
+    Source: \"{source}\"'
+    Target: \"{target}\"
+    Translation: \"{translation}\"
+    """
 
 
 def get_sentence(language, words):
