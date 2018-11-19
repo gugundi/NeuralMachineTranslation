@@ -41,7 +41,7 @@ def load_iwslt(config, SOS_token, EOS_token):
 
     print("Making iterator splits for IWSLT")
     # make iterator for splits in IWSLT
-    train_iter_iwslt, val_iter_iwslt = data.BucketIterator.splits((train_iwslt, val_iwslt), batch_size=1, device=-1, shuffle=True)
+    train_iter_iwslt, val_iter_iwslt = data.BucketIterator.splits((train_iwslt, val_iwslt), batch_size=config.get('batch_size'), device=-1, shuffle=True)
 
     print("Finished loading IWSLT")
 
