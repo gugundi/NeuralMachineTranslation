@@ -1,9 +1,9 @@
-from data_loader import load_iwslt
+import argparse
+from data_loader import load_debug, load_iwslt
 import json
 import os
 from parse import parse_config
 from random import random
-import sys
 from tensorboardX import SummaryWriter
 from time import time
 import torch
@@ -12,11 +12,9 @@ import torch.optim as optim
 
 
 def main():
-    args = sys.argv
-    if len(args) < 2:
-        config_path = 'configs/default.json'
-    else:
-        config_path = args[1]
+    args = parse_arguments()
+    config_path = args.config
+    debug = args.debug
     with open(config_path, 'r') as f:
         config = json.load(f)
     parsed_config = parse_config(config)
@@ -25,10 +23,29 @@ def main():
     writer_path = get_or_create_dir(main_path, f'.logs/{name}')
     SOS_token = '<SOS>'
     EOS_token = '<EOS>'
-    train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token)
+    if debug:
+        train_iter, val_iter, source_language, target_language = load_debug(parsed_config, SOS_token, EOS_token)
+    else:
+        train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token)
     parsed_config['source_vocabulary_size'] = len(source_language.itos)
     parsed_config['target_vocabulary_size'] = len(target_language.itos)
     train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
+
+
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Train machine translation model.')
+    parser.add_argument('--config', type=str, nargs='?', default='configs/default.json', help='Path to model configuration.')
+    parser.add_argument('--debug', type=str2bool, default=False, const=True, nargs='?', help='Use debug mode.')
+    return parser.parse_args()
 
 
 def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config):
