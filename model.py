@@ -9,6 +9,7 @@ class Encoder(nn.Module):
         rnn_config = config.get('rnn')
         source_vocabulary_size = config.get('source_vocabulary_size')
         dropout = rnn_config.get('dropout')
+        self.batch_size = config.get('batch_size')
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -21,6 +22,7 @@ class Encoder(nn.Module):
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
+            batch_first=True,
         )
 
     def forward(self, source_sentence, hidden):
@@ -29,8 +31,8 @@ class Encoder(nn.Module):
         return output, hidden
 
     def init_hidden(self):
-        h = torch.zeros(self.num_layers, 1, self.hidden_size)
-        c = torch.zeros(self.num_layers, 1, self.hidden_size)
+        h = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        c = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
         return h, c
 
 
@@ -43,6 +45,7 @@ class Decoder(nn.Module):
         target_vocabulary_size = config.get('target_vocabulary_size')
         dropout = rnn_config.get('dropout')
         window_size = attention_config.get('window_size')
+        self.batch_size = config.get('batch_size')
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -56,6 +59,7 @@ class Decoder(nn.Module):
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
+            batch_first=True,
         )
         self.tanh = nn.Tanh()
         self.log_softmax = nn.LogSoftmax(dim=1)
@@ -81,8 +85,8 @@ class Decoder(nn.Module):
         return y, h_t, hidden
 
     def init_hidden(self):
-        h = torch.zeros(self.num_layers, 1, self.hidden_size)
-        c = torch.zeros(self.num_layers, 1, self.hidden_size)
+        h = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        c = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
         return h, c
 
 
