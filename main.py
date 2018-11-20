@@ -9,6 +9,7 @@ from time import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from utils import get_or_create_dir
 
 
 # TODO: gpu support
@@ -202,13 +203,6 @@ def get_text(source_language, target_language, source, target, translation, SOS_
 
 def get_sentence(language, words):
     return " ".join(map(lambda word: language.itos[word], words))
-
-
-def get_or_create_dir(base_path, dir_name):
-    out_directory = os.path.join(base_path, dir_name)
-    if not os.path.exists(out_directory):
-        os.makedirs(out_directory)
-    return out_directory
 
 
 if __name__ == '__main__':
