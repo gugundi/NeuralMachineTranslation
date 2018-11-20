@@ -50,8 +50,9 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
         train_iter.init_epoch()
         val_iter.init_epoch()
 
-        for i, train_pair in enumerate(train_iter):
-            loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_pair)
+        for i, train_batch in enumerate(train_iter):
+            # TODO: Use torch.pad_sequence
+            loss = train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch)
 
             timestamp = time()
             writer_train.add_scalar('loss', loss, step, timestamp)
@@ -77,10 +78,12 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
             step += 1
 
 
-def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, pair):
+def train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, batch):
+    # TODO: Update train methods
     encoder.train()
     decoder.train()
 
+    # TODO: everything in pair should come from batch
     source_sentence = pair.src
     target_sentence = pair.trg
     encoder_hidden = encoder.init_hidden()
