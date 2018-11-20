@@ -57,6 +57,29 @@ def create_dummy_fixed_length_csv():
     val.to_csv('.data/dummy_fixed_length/val.csv', index=False)
 
 
+def create_dummy_variable_length_csv():
+    n_observations = 10000
+    min_source_length = 3
+    max_source_length = 15
+    condition = 5
+    max_int = 10
+    src = []
+    trg = []
+    for i in range(n_observations):
+        source_length = random.randint(min_source_length, max_source_length)
+        source = [random.randint(1, max_int) for _ in range(source_length)]
+        target = filter(lambda x: x < condition, source)
+        source = map(str, source)
+        target = map(str, target)
+        src.append(" ".join(source))
+        trg.append(" ".join(target))
+    data = {"src": src, "trg": trg}
+    dataframe = pd.DataFrame(data, columns=['src', 'trg'])
+    train, val = train_test_split(dataframe, test_size=0.1)
+    train.to_csv('.data/dummy_variable_length/train.csv', index=False)
+    val.to_csv('.data/dummy_variable_length/val.csv', index=False)
+
+
 def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer):
     source_field = torchtext.data.Field(tokenize=source_tokenizer, init_token=SOS_token, eos_token=EOS_token)
     target_field = torchtext.data.Field(tokenize=target_tokenizer, init_token=SOS_token, eos_token=EOS_token)

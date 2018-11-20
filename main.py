@@ -1,5 +1,5 @@
 import argparse
-from data_loader import load_debug, load_dummy_fixed_length
+from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable_length, load_iwslt
 import json
 import os
 from parse import parse_config
@@ -32,6 +32,7 @@ def main():
         train_iter, val_iter, source_language, target_language = load_debug(parsed_config, SOS_token, EOS_token)
     else:
         # train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token)
+        # train_iter, val_iter, source_language, target_language = load_dummy_variable_length(parsed_config, SOS_token, EOS_token)
         train_iter, val_iter, source_language, target_language = load_dummy_fixed_length(parsed_config, SOS_token, EOS_token)
     parsed_config['source_vocabulary_size'] = len(source_language.itos)
     parsed_config['target_vocabulary_size'] = len(target_language.itos)

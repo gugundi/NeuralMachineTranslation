@@ -1,7 +1,7 @@
 import os
 import spacy
 import torchtext
-from utils import create_debug_csv, create_dummy_fixed_length_csv, get_or_create_dir, load_from_csv
+from utils import create_debug_csv, create_dummy_fixed_length_csv, create_dummy_variable_length_csv, get_or_create_dir, load_from_csv
 
 
 # load tokenizers for german and english
@@ -35,7 +35,11 @@ def load_dummy_fixed_length(config, SOS_token, EOS_token):
     return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy)
 
 
-# TODO: variable length data loader
+def load_dummy_variable_length(config, SOS_token, EOS_token):
+    csv_dir_path = get_or_create_dir('.data', 'dummy_variable_length')
+    if not os.path.exists(f'{csv_dir_path}/train.csv'):
+        create_dummy_variable_length_csv()
+    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy)
 
 
 def load_iwslt(config, SOS_token, EOS_token):
