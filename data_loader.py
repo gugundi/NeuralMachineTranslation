@@ -21,28 +21,28 @@ def tokenize_dummy(text):
     return text.split(' ')
 
 
-def load_debug(config, SOS_token, EOS_token):
+def load_debug(config, SOS_token, EOS_token, device):
     csv_dir_path = get_or_create_dir('.data', 'debug')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_debug_csv()
-    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_de, tokenize_en)
+    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_de, tokenize_en, device)
 
 
-def load_dummy_fixed_length(config, SOS_token, EOS_token):
+def load_dummy_fixed_length(config, SOS_token, EOS_token, device):
     csv_dir_path = get_or_create_dir('.data', 'dummy_fixed_length')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_dummy_fixed_length_csv()
-    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy)
+    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
 
 
-def load_dummy_variable_length(config, SOS_token, EOS_token):
+def load_dummy_variable_length(config, SOS_token, EOS_token, device):
     csv_dir_path = get_or_create_dir('.data', 'dummy_variable_length')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_dummy_variable_length_csv()
-    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy)
+    return load_from_csv(config, SOS_token, EOS_token, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
 
 
-def load_iwslt(config, SOS_token, EOS_token):
+def load_iwslt(config, SOS_token, EOS_token, device):
     print("Started data-loader: IWSLT (de-en)")
 
     # set up fields for IWSLT
@@ -63,7 +63,12 @@ def load_iwslt(config, SOS_token, EOS_token):
 
     print("Making iterator splits for IWSLT")
     # make iterator for splits in IWSLT
-    train_iter_iwslt, val_iter_iwslt = torchtext.data.BucketIterator.splits((train_iwslt, val_iwslt), batch_size=1, device=-1, shuffle=True)
+    train_iter_iwslt, val_iter_iwslt = torchtext.data.BucketIterator.splits(
+        (train_iwslt, val_iwslt),
+        batch_size=1,
+        device=device,
+        shuffle=True
+    )
 
     print("Finished loading IWSLT")
 

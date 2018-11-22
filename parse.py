@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 
-def parse_config(config):
+def parse_config(config, device):
     optimizer_config = config.get('optimizer')
     loss_fn = get_loss_fn(config)
     parsed_config = {
@@ -16,9 +16,9 @@ def parse_config(config):
         "target_vocabulary_size": config.get('target_vocabulary_size'),
         "training": config.get('training'),
     }
-    encoder = Encoder(parsed_config)
+    encoder = Encoder(parsed_config, device)
     encoder_optimizer = get_optimizer(optimizer_config, encoder)
-    decoder = Decoder(parsed_config)
+    decoder = Decoder(parsed_config, device)
     decoder_optimizer = get_optimizer(optimizer_config, decoder)
     parsed_config["model"] = encoder, decoder
     parsed_config["optimizer"] = encoder_optimizer, decoder_optimizer

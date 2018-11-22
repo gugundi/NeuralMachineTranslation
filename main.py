@@ -1,5 +1,6 @@
 import argparse
 from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable_length, load_iwslt
+from device import select_device, with_cpu, with_gpu
 import json
 import os
 from parse import parse_config
@@ -12,8 +13,9 @@ import torch.optim as optim
 from utils import get_or_create_dir
 
 
-# TODO: gpu support
 # TODO: visualize attention
+# TODO: select a random sentence (only 1) when sampling
+# TODO: do not go through all of validation set when evaluating
 
 
 def main():
@@ -22,21 +24,30 @@ def main():
     debug = args.debug
     with open(config_path, 'r') as f:
         config = json.load(f)
-    parsed_config = parse_config(config)
+    use_gpu, device, device_idx = select_device()
+    parsed_config = parse_config(config, device)
     main_path = os.path.dirname(os.path.realpath(__file__))
     name = parsed_config.get('name')
     writer_path = get_or_create_dir(main_path, f'.logs/{name}')
     SOS_token = '<SOS>'
     EOS_token = '<EOS>'
     if debug:
-        train_iter, val_iter, source_language, target_language = load_debug(parsed_config, SOS_token, EOS_token)
+        train_iter, val_iter, source_language, target_language = load_debug(parsed_config, SOS_token, EOS_token, device)
     else:
-        # train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token)
-        # train_iter, val_iter, source_language, target_language = load_dummy_variable_length(parsed_config, SOS_token, EOS_token)
-        train_iter, val_iter, source_language, target_language = load_dummy_fixed_length(parsed_config, SOS_token, EOS_token)
+        # train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token, device)
+        # train_iter, val_iter, source_language, target_language = load_dummy_variable_length(parsed_config, SOS_token, EOS_token, device)
+        train_iter, val_iter, source_language, target_language = load_dummy_fixed_length(parsed_config, SOS_token, EOS_token, device)
     parsed_config['source_vocabulary_size'] = len(source_language.itos)
     parsed_config['target_vocabulary_size'] = len(target_language.itos)
-    train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
+    if use_gpu:
+        with torch.cuda.device(device_idx):
+            encoder, decoder = parsed_config['model']
+            encoder = encoder.to(device)
+            decoder = decoder.to(device)
+            parsed_config['model'] = encoder, decoder
+            train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
+    else:
+        train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
 
 
 def str2bool(v):
@@ -109,18 +120,18 @@ def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, 
     target_sentence = pair.trg
     encoder_hidden = encoder.init_hidden()
     source_sentence_length = source_sentence.size(0)
-    source_hiddens = torch.zeros(source_sentence_length, encoder.hidden_size)
+    source_hiddens = with_gpu(torch.zeros(source_sentence_length, encoder.hidden_size))
     target_sentence_length = target_sentence.size(0)
 
     for i in range(source_sentence_length):
         encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
         source_hiddens[i] = encoder_output[0, 0]
 
-    decoder_input = torch.LongTensor([[SOS]])
+    decoder_input = with_gpu(torch.LongTensor([[SOS]]))
     decoder_hidden = encoder_hidden
     context = encoder_hidden[0]
 
-    loss = 0
+    loss = with_gpu(torch.FloatTensor([0]))
     for i in range(target_sentence_length):
         y, context, decoder_hidden = decoder(source_sentence_length, source_hiddens, decoder_input, context, decoder_hidden)
         context = context.unsqueeze(0)
@@ -137,7 +148,7 @@ def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, 
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    return loss
+    return with_cpu(loss)
 
 
 def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
@@ -149,7 +160,7 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
         target_sentence = pair.trg
         encoder_hidden = encoder.init_hidden()
         source_sentence_length = source_sentence.size(0)
-        source_hiddens = torch.zeros(source_sentence_length, encoder.hidden_size)
+        source_hiddens = with_gpu(torch.zeros(source_sentence_length, encoder.hidden_size))
         target_sentence_length = target_sentence.size(0)
 
         for i in range(source_sentence_length):
@@ -157,12 +168,12 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
             source_hiddens[i] = encoder_output[0, 0]
 
         decoded_words = []
-        decoder_input = torch.LongTensor([[SOS]])
+        decoder_input = with_gpu(torch.LongTensor([[SOS]]))
         decoder_hidden = encoder_hidden
         context = encoder_hidden[0]
 
         max_length = max(10, 2 * target_sentence_length)
-        loss = 0
+        loss = with_gpu(torch.FloatTensor([0]))
         i = 0
         while True:
             y, context, decoder_hidden = decoder(source_sentence_length, source_hiddens, decoder_input, context, decoder_hidden)
@@ -172,7 +183,7 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
             decoded_word = topi.item()
             if i < target_sentence_length:
                 target = target_sentence[i].view(1)
-                loss += loss_fn(y, target)
+                loss += loss_fn(y, target).item()
             if decoded_word == EOS:
                 break
             decoded_words.append(decoded_word)
@@ -180,11 +191,12 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
                 break
             i += 1
 
-        return loss, decoded_words
+        return with_cpu(loss), decoded_words
 
 
 def torch2text(language, sentence, SOS_token, EOS_token):
     sentence = sentence.squeeze()
+    sentence = with_cpu(sentence)
     sentence = map(lambda idx: language.itos[idx], sentence)
     sentence = filter(lambda word: word != SOS_token and word != EOS_token, sentence)
     sentence = " ".join(sentence)

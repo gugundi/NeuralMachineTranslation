@@ -4,11 +4,12 @@ import torch.nn as nn
 
 class Encoder(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config, device):
         super(Encoder, self).__init__()
         rnn_config = config.get('rnn')
         source_vocabulary_size = config.get('source_vocabulary_size')
         dropout = rnn_config.get('dropout')
+        self.device = device
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -29,20 +30,21 @@ class Encoder(nn.Module):
         return output, hidden
 
     def init_hidden(self):
-        h = torch.zeros(self.num_layers, 1, self.hidden_size)
-        c = torch.zeros(self.num_layers, 1, self.hidden_size)
+        h = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
+        c = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
         return h, c
 
 
 class Decoder(nn.Module):
 
-    def __init__(self, config):
+    def __init__(self, config, device):
         super(Decoder, self).__init__()
         attention_config = config.get('attention')
         rnn_config = config.get('rnn')
         target_vocabulary_size = config.get('target_vocabulary_size')
         dropout = rnn_config.get('dropout')
         window_size = attention_config.get('window_size')
+        self.device = device
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -81,8 +83,8 @@ class Decoder(nn.Module):
         return y, h_t, hidden
 
     def init_hidden(self):
-        h = torch.zeros(self.num_layers, 1, self.hidden_size)
-        c = torch.zeros(self.num_layers, 1, self.hidden_size)
+        h = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
+        c = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
         return h, c
 
 

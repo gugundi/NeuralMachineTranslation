@@ -80,7 +80,7 @@ def create_dummy_variable_length_csv():
     val.to_csv('.data/dummy_variable_length/val.csv', index=False)
 
 
-def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer):
+def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
     source_field = torchtext.data.Field(tokenize=source_tokenizer, init_token=SOS_token, eos_token=EOS_token)
     target_field = torchtext.data.Field(tokenize=target_tokenizer, init_token=SOS_token, eos_token=EOS_token)
     data_fields = [('src', source_field), ('trg', target_field)]
@@ -99,7 +99,7 @@ def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, 
     train_iter, val_iter = torchtext.data.BucketIterator.splits(
         (train, val),
         batch_size=1,
-        device=-1,
+        device=device,
         shuffle=True,
         sort_key=lambda x: len(x.src)
     )
