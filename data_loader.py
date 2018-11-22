@@ -72,7 +72,7 @@ def load_iwslt(config, SOS_token, EOS_token, device):
 
     print("Finished loading IWSLT")
 
-    return train_iter_iwslt, val_iter_iwslt, DE_IWSLT.vocab, EN_IWSLT.vocab
+    return train_iter_iwslt, val_iter_iwslt, DE_IWSLT.vocab, EN_IWSLT.vocab, train_iwslt, val_iwslt
 
 
 """

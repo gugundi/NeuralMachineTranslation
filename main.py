@@ -4,8 +4,9 @@ from device import select_device, with_cpu, with_gpu
 import json
 import os
 from parse import parse_config
-from random import random
+from random import random, sample
 from tensorboardX import SummaryWriter
+import torchtext
 from time import time
 import torch
 import torch.nn as nn
@@ -14,11 +15,10 @@ from utils import get_or_create_dir
 
 
 # TODO: visualize attention
-# TODO: select a random sentence (only 1) when sampling
-# TODO: do not go through all of validation set when evaluating
 # TODO: find way to avoid starting decoder with SOS
 #    - this allows to remove init_token from target fields and so also to use all of target sentence
 # TODO: merge parsing of config and command line args
+# TODO: clean up code - for example make config load data
 
 
 def main():
@@ -37,22 +37,36 @@ def main():
     SOS_token = '<SOS>'
     EOS_token = '<EOS>'
     if debug:
-        train_iter, val_iter, source_language, target_language = load_debug(parsed_config, SOS_token, EOS_token, device)
+        train_iter, val_iter, source_language, target_language, _, val_dataset = load_debug(parsed_config, SOS_token, EOS_token, device)
     else:
-        # train_iter, val_iter, source_language, target_language = load_iwslt(parsed_config, SOS_token, EOS_token, device)
-        # train_iter, val_iter, source_language, target_language = load_dummy_variable_length(parsed_config, SOS_token, EOS_token, device)
-        train_iter, val_iter, source_language, target_language = load_dummy_fixed_length(parsed_config, SOS_token, EOS_token, device)
+        # train_iter, val_iter, source_language, target_language, _, val_dataset = load_iwslt(parsed_config, SOS_token, EOS_token, device)
+        # train_iter, val_iter, source_language, target_language, _, val_dataset = load_dummy_variable_length(parsed_config, SOS_token, EOS_token, device)
+        train_iter, val_iter, source_language, target_language, _, val_dataset = load_dummy_fixed_length(parsed_config, SOS_token, EOS_token, device)
     parsed_config['source_vocabulary_size'] = len(source_language.itos)
     parsed_config['target_vocabulary_size'] = len(target_language.itos)
+    val_data = val_iter.data()
+
+    def sample_batches_from_val_data(k):
+        return[torchtext.data.Batch(sample(val_data, 1), val_dataset, device) for _ in range(k)]
+
     if use_gpu:
         with torch.cuda.device(device_idx):
             encoder, decoder = parsed_config['model']
             encoder = encoder.to(device)
             decoder = decoder.to(device)
             parsed_config['model'] = encoder, decoder
-            train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
+            train(
+                train_iter,
+                source_language,
+                target_language,
+                SOS_token,
+                EOS_token,
+                writer_path,
+                parsed_config,
+                sample_batches_from_val_data
+            )
     else:
-        train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config)
+        train(train_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config, sample_batches_from_val_data)
 
 
 def str2bool(v):
@@ -72,7 +86,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config):
+def train(train_iter, source_language, target_language, SOS_token, EOS_token, writer_path, parsed_config, sample_batches_from_val_data):
     SOS = target_language.stoi[SOS_token]
     EOS = target_language.stoi[EOS_token]
     writer_train_path = get_or_create_dir(writer_path, 'train')
@@ -88,9 +102,6 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
     sample_every = training.get('sample_every')
     step = 1
     for epoch in range(epochs):
-        train_iter.init_epoch()
-        val_iter.init_epoch()
-
         for i, train_pair in enumerate(train_iter):
             loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_pair)
 
@@ -99,21 +110,19 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
 
             if (i + 1) % eval_every == 0:
                 val_losses = 0
-                val_lengths = 0
-                for val_pair in val_iter:
+                val_lengths = 64
+                val_batches = sample_batches_from_val_data(val_lengths)
+                for val_pair in val_batches:
                     val_loss, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
                     val_losses += val_loss
-                    val_lengths += 1
                 val_loss = val_losses / val_lengths
                 writer_val.add_scalar('loss', val_loss, step, timestamp)
 
             if (i + 1) % sample_every == 0:
-                for j, val_pair in enumerate(val_iter):
-                    if j == 5:
-                        break
-                    _, translation = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
-                    text = get_text(source_language, target_language, val_pair.src, val_pair.trg, translation, SOS_token, EOS_token)
-                    writer_val.add_text('translation', text, step, timestamp)
+                val_pair = sample_batches_from_val_data(1)[0]
+                _, translation = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
+                text = get_text(source_language, target_language, val_pair.src, val_pair.trg, translation, SOS_token, EOS_token)
+                writer_val.add_text('translation', text, step, timestamp)
 
             step += 1
 

@@ -103,4 +103,4 @@ def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, 
         shuffle=True,
         sort_key=lambda x: len(x.src)
     )
-    return train_iter, val_iter, source_field.vocab, target_field.vocab
+    return train_iter, val_iter, source_field.vocab, target_field.vocab, train, val
