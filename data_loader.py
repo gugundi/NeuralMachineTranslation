@@ -46,7 +46,6 @@ def load_iwslt(config, SOS_token, EOS_token):
 
     # print batch information
     batch = next(iter(train_iter_iwslt))
-    print(shape())
     print(batch.src)
     print(batch.trg)
 
