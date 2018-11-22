@@ -44,11 +44,6 @@ def load_iwslt(config, SOS_token, EOS_token):
     # train_iter_iwslt, val_iter_iwslt = data.BucketIterator.splits((train_iwslt, val_iwslt), batch_size=config.get('batch_size'), device=-1, shuffle=True)
     train_iter_iwslt, val_iter_iwslt = data.BucketIterator.splits((train_iwslt, val_iwslt), batch_size=config.get('batch_size'))
 
-    # print batch information
-    batch = next(iter(train_iter_iwslt))
-    print(batch.src)
-    print(batch.trg)
-
     print("Finished loading IWSLT")
 
     return train_iter_iwslt, val_iter_iwslt, DE_IWSLT.vocab, EN_IWSLT.vocab
