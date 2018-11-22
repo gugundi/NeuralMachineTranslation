@@ -16,6 +16,9 @@ from utils import get_or_create_dir
 # TODO: visualize attention
 # TODO: select a random sentence (only 1) when sampling
 # TODO: do not go through all of validation set when evaluating
+# TODO: find way to avoid starting decoder with SOS
+#    - this allows to remove init_token from target fields and so also to use all of target sentence
+# TODO: merge parsing of config and command line args
 
 
 def main():
@@ -27,7 +30,9 @@ def main():
     use_gpu, device, device_idx = select_device()
     parsed_config = parse_config(config, device)
     main_path = os.path.dirname(os.path.realpath(__file__))
-    name = parsed_config.get('name')
+    name = args.name
+    if name is None:
+        name = parsed_config.get('name')
     writer_path = get_or_create_dir(main_path, f'.logs/{name}')
     SOS_token = '<SOS>'
     EOS_token = '<EOS>'
@@ -63,6 +68,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Train machine translation model.')
     parser.add_argument('--config', type=str, nargs='?', default='configs/default.json', help='Path to model configuration.')
     parser.add_argument('--debug', type=str2bool, default=False, const=True, nargs='?', help='Use debug mode.')
+    parser.add_argument('--name', default=None, type=str, help='Name used when writing to tensorboard.')
     return parser.parse_args()
 
 
@@ -121,7 +127,9 @@ def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, 
     encoder_hidden = encoder.init_hidden()
     source_sentence_length = source_sentence.size(0)
     source_hiddens = with_gpu(torch.zeros(source_sentence_length, encoder.hidden_size))
-    target_sentence_length = target_sentence.size(0)
+    # do not train on SOS token
+    target_sentence_length = target_sentence.size(0) - 1
+    target_sentence = target_sentence[1:]
 
     for i in range(source_sentence_length):
         encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
@@ -161,7 +169,9 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
         encoder_hidden = encoder.init_hidden()
         source_sentence_length = source_sentence.size(0)
         source_hiddens = with_gpu(torch.zeros(source_sentence_length, encoder.hidden_size))
-        target_sentence_length = target_sentence.size(0)
+        # do not evaluate on SOS token
+        target_sentence_length = target_sentence.size(0) - 1
+        target_sentence = target_sentence[1:]
 
         for i in range(source_sentence_length):
             encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
@@ -208,7 +218,7 @@ def get_text(source_language, target_language, source, target, translation, SOS_
     target = torch2text(target_language, target, EOS_token, SOS_token)
     translation = get_sentence(target_language, translation)
     return f"""
-    Source: \"{source}\"'
+    Source: \"{source}\"
     Target: \"{target}\"
     Translation: \"{translation}\"
     """

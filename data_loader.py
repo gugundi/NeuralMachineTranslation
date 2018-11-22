@@ -46,7 +46,7 @@ def load_iwslt(config, SOS_token, EOS_token, device):
     print("Started data-loader: IWSLT (de-en)")
 
     # set up fields for IWSLT
-    DE_IWSLT = torchtext.data.Field(tokenize=tokenize_de, init_token=SOS_token, eos_token=EOS_token)
+    DE_IWSLT = torchtext.data.Field(tokenize=tokenize_de)
     EN_IWSLT = torchtext.data.Field(tokenize=tokenize_en, init_token=SOS_token, eos_token=EOS_token)
 
     print("Making splits for IWSLT")
@@ -58,7 +58,7 @@ def load_iwslt(config, SOS_token, EOS_token, device):
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
     # minus 4 for SOS, EOS, PAD and UNK
-    DE_IWSLT.build_vocab(train_iwslt.src, max_size=source_vocabulary_size - 4)
+    DE_IWSLT.build_vocab(train_iwslt.src, max_size=source_vocabulary_size - 2)
     EN_IWSLT.build_vocab(train_iwslt.trg, max_size=target_vocabulary_size - 4)
 
     print("Making iterator splits for IWSLT")
