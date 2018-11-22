@@ -7,6 +7,7 @@ def parse_config(config):
     optimizer_config = config.get('optimizer')
     loss_fn = get_loss_fn(config)
     parsed_config = {
+        "batch_size": config.get('batch_size')
         "attention": config.get('attention'),
         "epochs": config.get('epochs'),
         "loss_fn": loss_fn,
