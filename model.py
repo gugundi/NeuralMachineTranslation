@@ -18,7 +18,7 @@ class Encoder(nn.Module):
             embedding_dim=self.hidden_size,
         )
         self.lstm = nn.LSTM(
-            input_size=self.hidden_size,
+            input_size=self.hidden_size*self.batch_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
@@ -26,7 +26,7 @@ class Encoder(nn.Module):
         )
 
     def forward(self, inputs, hidden):
-        embedded = self.embedding(torch([inputs, self.batch_size])).view(1, 1, -1)
+        embedded = self.embedding(inputs).view(1, 1, -1)
         print(embedded.size())
         output, hidden = self.lstm(embedded, hidden)
         return output, hidden
