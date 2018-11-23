@@ -54,8 +54,6 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
 
         for i, train_batch in enumerate(train_iter):
             # TODO: Use torch.pad_sequence
-            print(train_batch.size())
-            pad_sequence(train_batch, batch_first = True)
             train_loss = train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch)
 
             timestamp = time()
@@ -90,8 +88,8 @@ def train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer,
     decoder.train()
 
     # TODO: everything in pair should come from batch
-    source_batch = batch.src
-    target_batch = batch.trg
+    source_batch = pad_sequence(batch.src, batch_first = True)
+    target_batch = pad_sequence(batch.trg, batch_first = True)
     encoder_hidden = encoder.init_hidden()
     source_batch_length = source_batch.size(1)
     print('Sorce_batch size: ', source_batch.size())
