@@ -100,7 +100,7 @@ def train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer,
 
     # Run encoder and get output and last hidden state
     for i in range(source_batch_length):
-        encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
+        encoder_output, encoder_hidden = encoder(source_batch[i], encoder_hidden)
         print('Encoder_output size: ', encoder_output.size())
         print('Encoder_hidden size: ', encoder_hidden.size())
         source_hiddens[i] = encoder_output[0, 0]
