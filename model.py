@@ -27,6 +27,7 @@ class Encoder(nn.Module):
 
     def forward(self, inputs, hidden):
         embedded = self.embedding(inputs).view(1, 1, -1)
+        print(embedded.size())
         output, hidden = self.lstm(embedded, hidden)
         return output, hidden
 
