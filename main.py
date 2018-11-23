@@ -6,6 +6,7 @@ from random import random
 import sys
 from tensorboardX import SummaryWriter
 from time import time
+from torch.nn.utils.rnn import pad_sequence
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -38,6 +39,7 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
     writer_val_path = get_or_create_dir(writer_path, 'val')
     writer_train = SummaryWriter(log_dir=writer_train_path)
     writer_val = SummaryWriter(log_dir=writer_val_path)
+    batch_size = parsed_config.get('batch_size')
     epochs = parsed_config.get('epochs')
     loss_fn = parsed_config.get('loss_fn')
     encoder, decoder = parsed_config['model']
@@ -52,27 +54,30 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
 
         for i, train_batch in enumerate(train_iter):
             # TODO: Use torch.pad_sequence
-            loss = train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch)
+            pad_sequence(train_batch, batch_first = True)
+            train_loss = train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch)
 
             timestamp = time()
-            writer_train.add_scalar('loss', loss, step, timestamp)
+            writer_train.add_scalar('loss', train_loss, step, timestamp)
 
             if (i + 1) % eval_every == 0:
                 val_losses = 0
                 val_lengths = 0
-                for val_pair in val_iter:
-                    val_loss, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
+                for val_batch in val_iter:
+                    val_loss, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_batch)
                     val_losses += val_loss
+                    # Is this supposed to be batch_size?
+                    # val_lengths += batch_size
                     val_lengths += 1
                 val_loss = val_losses / val_lengths
                 writer_val.add_scalar('loss', val_loss, step, timestamp)
 
             if (i + 1) % sample_every == 0:
-                for j, val_pair in enumerate(val_iter):
+                for j, val_batch in enumerate(val_iter):
                     if j == 5:
                         break
-                    _, translation = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
-                    text = get_text(source_language, target_language, val_pair.src, val_pair.trg, translation, SOS_token, EOS_token)
+                    _, translation = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_batch)
+                    text = get_text(source_language, target_language, val_batch.src, val_batch.trg, translation, SOS_token, EOS_token)
                     writer_val.add_text('translation', text, step, timestamp)
 
             step += 1
@@ -84,15 +89,20 @@ def train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer,
     decoder.train()
 
     # TODO: everything in pair should come from batch
-    source_sentence = pair.src
-    target_sentence = pair.trg
+    source_batch = batch.src
+    target_batch = batch.trg
     encoder_hidden = encoder.init_hidden()
-    source_sentence_length = source_sentence.size(0)
-    source_hiddens = torch.zeros(source_sentence_length, encoder.hidden_size)
-    target_sentence_length = target_sentence.size(0)
+    source_batch_length = source_batch.size(1)
+    print('Sorce_batch size: ', source_batch.size())
+    print('Sorce_batch_length length: ', source_batch_length)
+    source_hiddens = torch.zeros(source_batch_length, encoder.hidden_size)
+    target_sentence_length = target_batch.size(1)
 
-    for i in range(source_sentence_length):
+    # Run encoder and get output and last hidden state
+    for i in range(source_batch_length):
         encoder_output, encoder_hidden = encoder(source_sentence[i], encoder_hidden)
+        print('Encoder_output size: ', encoder_output.size())
+        print('Encoder_hidden size: ', encoder_hidden.size())
         source_hiddens[i] = encoder_output[0, 0]
 
     decoder_input = torch.LongTensor([[SOS]])

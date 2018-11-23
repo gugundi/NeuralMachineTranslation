@@ -25,8 +25,9 @@ class Encoder(nn.Module):
             batch_first=True,
         )
 
-    def forward(self, source_sentence, hidden):
-        embedded = self.embedding(source_sentence).view(1, 1, -1)
+    def forward(self, inputs, hidden):
+        # embedded = self.embedding(inputs).view(1, 1, -1)
+        embedded = self.embedding(inputs)
         output, hidden = self.lstm(embedded, hidden)
         return output, hidden
 
