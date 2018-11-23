@@ -54,6 +54,7 @@ def train(train_iter, val_iter, source_language, target_language, SOS_token, EOS
 
         for i, train_batch in enumerate(train_iter):
             # TODO: Use torch.pad_sequence
+            print(train_batch.size())
             pad_sequence(train_batch, batch_first = True)
             train_loss = train_sentence_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch)
 
