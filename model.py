@@ -18,7 +18,7 @@ class Encoder(nn.Module):
             embedding_dim=self.hidden_size,
         )
         self.lstm = nn.LSTM(
-            input_size=self.hidden_size*self.batch_size,
+            input_size=self.hidden_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
