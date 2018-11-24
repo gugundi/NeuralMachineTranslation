@@ -80,9 +80,9 @@ def create_dummy_variable_length_csv():
     val.to_csv('.data/dummy_variable_length/val.csv', index=False)
 
 
-def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
-    source_field = torchtext.data.Field(tokenize=source_tokenizer)
-    target_field = torchtext.data.Field(tokenize=target_tokenizer, init_token=SOS_token, eos_token=EOS_token)
+def load_from_csv(config, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
+    source_field = torchtext.data.Field(tokenize=source_tokenizer, eos_token=EOS_token)
+    target_field = torchtext.data.Field(tokenize=target_tokenizer, eos_token=EOS_token)
     data_fields = [('src', source_field), ('trg', target_field)]
     train, val = torchtext.data.TabularDataset.splits(
         path=csv_dir_path,
@@ -95,7 +95,7 @@ def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, 
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
     source_field.build_vocab(train, val, max_size=source_vocabulary_size - 2)
-    target_field.build_vocab(train, val, max_size=target_vocabulary_size - 4)
+    target_field.build_vocab(train, val, max_size=target_vocabulary_size - 3)
     train_iter, val_iter = torchtext.data.BucketIterator.splits(
         (train, val),
         batch_size=1,

@@ -25,7 +25,7 @@ class Encoder(nn.Module):
         )
 
     def forward(self, source_sentence, hidden):
-        embedded = self.embedding(source_sentence).view(1, 1, -1)
+        embedded = self.embedding(source_sentence)
         output, hidden = self.lstm(embedded, hidden)
         return output, hidden
 
@@ -70,17 +70,16 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, source_sentence_length, source_hiddens, prev_word, prev_c, previous_hidden):
+    def forward(self, source_sentence_length, encoder_output, prev_word, prev_c, previous_hidden):
         embedded = self.embedding(prev_word)
         lstm_input = torch.cat((embedded, prev_c), 2)
-        _, hidden = self.lstm(lstm_input, previous_hidden)
-        target_hidden, _ = hidden
-        c = self.attention(source_sentence_length, source_hiddens, target_hidden)
-        h_t = target_hidden.view(1, -1)
+        decoder_output, decoder_hidden = self.lstm(lstm_input, previous_hidden)
+        c = self.attention(source_sentence_length, encoder_output, decoder_output)
+        h_t = decoder_output.view(1, -1)
         h_t = torch.cat((c, h_t), 1)
         h_t = self.tanh(self.fc1(h_t))
         y = self.log_softmax(self.fc2(h_t))
-        return y, h_t, hidden
+        return y, h_t, decoder_hidden
 
     def init_hidden(self):
         h = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
@@ -102,10 +101,10 @@ class Attention(nn.Module):
         self.fc1 = nn.Linear(in_features=hidden_size, out_features=n_intermediate_features)
         self.fc2 = nn.Linear(in_features=n_intermediate_features, out_features=1)
 
-    def forward(self, source_sentence_length, source_hiddens, target_hidden):
+    def forward(self, source_sentence_length, encoder_output, decoder_output):
         S = source_sentence_length
-        h_s = source_hiddens
-        h_t = target_hidden
+        h_s = encoder_output
+        h_t = decoder_output
 
         p_t = self.tanh(self.fc1(h_t))
         p_t = S * self.sigmoid(self.fc2(p_t))
