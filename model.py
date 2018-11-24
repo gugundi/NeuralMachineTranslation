@@ -61,7 +61,7 @@ class Decoder(nn.Module):
             dropout=dropout,
         )
         self.tanh = nn.Tanh()
-        self.log_softmax = nn.LogSoftmax(dim=1)
+        self.log_softmax = nn.LogSoftmax(dim=2)
         self.fc1 = nn.Linear(
             in_features=2 * self.hidden_size,
             out_features=self.hidden_size,
@@ -96,7 +96,7 @@ class Attention(nn.Module):
         self.hidden_size = hidden_size
         self.device = device
         self.sigmoid = nn.Sigmoid()
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=2)
         self.tanh = nn.Tanh()
         self.fc1 = nn.Linear(in_features=hidden_size, out_features=math.ceil(hidden_size / 2))
         self.fc2 = nn.Linear(in_features=math.ceil(hidden_size / 2), out_features=1)

@@ -27,7 +27,7 @@ def run(use_gpu, device, device_idx):
     val_dataset = config.get('val_dataset')
 
     def sample_validation_batches(k):
-        return [torchtext.data.Batch(sample(val_data, 1), val_dataset, device) for _ in range(k)]
+        return [torchtext.data.Batch(sample(val_data, 1), val_dataset, device_idx) for _ in range(k)]
 
     train(config, sample_validation_batches)
 
@@ -74,7 +74,6 @@ def train(config, sample_validation_batches):
                 _, translation, attention_weights = evaluate_sentence_pair(encoder, decoder, loss_fn, EOS, val_pair)
                 source_words = torch2words(source_language, val_pair.src)
                 target_words = list2words(target_language, val_pair.trg)
-                print(translation)
                 translation_words = list2words(target_language, translation)
                 attention_figure = visualize_attention(source_words, translation_words, attention_weights)
                 text = get_text(source_words, target_words, translation_words, EOS_token)
@@ -147,7 +146,7 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, EOS, pair):
             decoded_word = topi.item()
             y = y.view(1, -1)
             if i < target_sentence_length:
-                target = target_sentence[i].view(1)
+                target = target_sentence[i]
                 loss += loss_fn(y, target).item()
             weights, window_start, window_end = attention
             attention_weights_row = with_gpu(torch.zeros(1, source_sentence_length))
