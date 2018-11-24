@@ -57,9 +57,8 @@ def load_iwslt(config, EOS_token, device):
     # build the vocabulary of IWSLT
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
-    # minus 3 for EOS, PAD and UNK
-    DE_IWSLT.build_vocab(train_iwslt.src, max_size=source_vocabulary_size - 2)
-    EN_IWSLT.build_vocab(train_iwslt.trg, max_size=target_vocabulary_size - 3)
+    DE_IWSLT.build_vocab(train_iwslt.src, max_size=source_vocabulary_size)
+    EN_IWSLT.build_vocab(train_iwslt.trg, max_size=target_vocabulary_size)
 
     print("Making iterator splits for IWSLT")
     # make iterator for splits in IWSLT

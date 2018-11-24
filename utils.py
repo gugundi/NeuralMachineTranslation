@@ -1,3 +1,4 @@
+from device import with_cpu
 import itertools
 import os
 import pandas as pd
@@ -94,8 +95,8 @@ def load_from_csv(config, EOS_token, csv_dir_path, source_tokenizer, target_toke
     )
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
-    source_field.build_vocab(train, val, max_size=source_vocabulary_size - 2)
-    target_field.build_vocab(train, val, max_size=target_vocabulary_size - 3)
+    source_field.build_vocab(train, val, max_size=source_vocabulary_size)
+    target_field.build_vocab(train, val, max_size=target_vocabulary_size)
     train_iter, val_iter = torchtext.data.BucketIterator.splits(
         (train, val),
         batch_size=1,
@@ -104,3 +105,32 @@ def load_from_csv(config, EOS_token, csv_dir_path, source_tokenizer, target_toke
         sort_key=lambda x: len(x.src)
     )
     return train_iter, val_iter, source_field.vocab, target_field.vocab, train, val
+
+
+def list2words(language, sentence):
+    sentence = map(lambda idx: language.itos[idx], sentence)
+    return list(sentence)
+
+
+def torch2words(language, sentence):
+    sentence = sentence.squeeze()
+    sentence = with_cpu(sentence)
+    sentence = map(lambda idx: language.itos[idx], sentence)
+    return list(sentence)
+
+
+def words2text(words, EOS_token):
+    sentence = filter(lambda word: word != EOS_token, words)
+    sentence = " ".join(sentence)
+    return sentence
+
+
+def get_text(source_words, target_words, translation_words, EOS_token):
+    source = words2text(source_words, EOS_token)
+    target = words2text(target_words, EOS_token)
+    translation = words2text(translation_words, EOS_token)
+    return f"""
+    Source: \"{source}\"
+    Target: \"{target}\"
+    Translation: \"{translation}\"
+    """
