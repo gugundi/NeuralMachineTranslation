@@ -13,6 +13,7 @@ from visualize import visualize_attention
 
 def main():
     use_gpu, device, device_idx = select_device()
+    print(f'Using device: {device}')
     if use_gpu:
         with torch.cuda.device(device_idx):
             run(use_gpu, device, device_idx)
@@ -97,13 +98,12 @@ def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, 
     target_sentence_length = target_sentence.size(0)
 
     encoder_output, encoder_hidden = encoder(source_sentence, encoder_hidden)
-    context = encoder_output[source_sentence_length - 1].unsqueeze(0)
     decoder_input = with_gpu(torch.LongTensor([[SOS]]))
     decoder_hidden = encoder_hidden
 
     loss = with_gpu(torch.FloatTensor([0]))
     for i in range(target_sentence_length):
-        y, context, decoder_hidden, _ = decoder(source_sentence_length, encoder_output, decoder_input, context, decoder_hidden)
+        y, _, decoder_hidden, _ = decoder(source_sentence_length, encoder_output, decoder_input, decoder_hidden)
         topv, topi = y.topk(1)
         decoder_input = topi.detach().view(1, 1)
         target = target_sentence[i]
@@ -134,7 +134,6 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
         target_sentence_length = target_sentence.size(0)
 
         encoder_output, encoder_hidden = encoder(source_sentence, encoder_hidden)
-        context = encoder_output[source_sentence_length - 1].unsqueeze(0)
         decoder_input = with_gpu(torch.LongTensor([[SOS]]))
         decoder_hidden = encoder_hidden
 
@@ -144,7 +143,7 @@ def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
         loss = with_gpu(torch.FloatTensor([0]))
         i = 0
         while True:
-            y, context, decoder_hidden, attention = decoder(source_sentence_length, encoder_output, decoder_input, context, decoder_hidden)
+            y, _, decoder_hidden, attention = decoder(source_sentence_length, encoder_output, decoder_input, decoder_hidden)
             topv, topi = y.topk(1)
             decoder_input = topi.view(1, 1)
             decoded_word = topi.item()

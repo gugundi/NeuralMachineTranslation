@@ -28,7 +28,7 @@ def get_config(use_gpu, device, device_idx):
     file_path = os.path.dirname(os.path.realpath(__file__))
     config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
     config['EOS_token'] = EOS_token
-    config['SOS_token'] = EOS_token
+    config['SOS_token'] = SOS_token
     config['source_vocabulary_size'] = len(src_language.itos)
     config['target_vocabulary_size'] = len(trg_language.itos)
     config['train_iter'] = train_iter

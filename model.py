@@ -55,7 +55,7 @@ class Decoder(nn.Module):
             embedding_dim=self.hidden_size,
         )
         self.lstm = nn.LSTM(
-            input_size=2 * self.hidden_size,
+            input_size=self.hidden_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
@@ -71,15 +71,14 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, source_sentence_length, encoder_output, prev_word, prev_context, prev_hidden):
-        embedded = self.embedding(prev_word)
-        input = torch.cat((embedded, prev_context), 2)
-        output, hidden = self.lstm(input, prev_hidden)
+    def forward(self, source_sentence_length, encoder_output, word, hidden):
+        embedded = self.embedding(word)
+        output, hidden = self.lstm(embedded, hidden)
         c, a = self.attention(source_sentence_length, encoder_output, output)
-        h_t = torch.cat((c, output), 2)
-        h_t = self.tanh(self.fc1(h_t))
-        y = self.log_softmax(self.fc2(h_t))
-        return y, h_t, hidden, a
+        output = torch.cat((c, output), 2)
+        output = self.tanh(self.fc1(output))
+        y = self.log_softmax(self.fc2(output))
+        return y, output, hidden, a
 
     def init_hidden(self):
         h = torch.zeros(self.num_layers, 1, self.hidden_size, device=self.device)
