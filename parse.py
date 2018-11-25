@@ -14,19 +14,21 @@ def get_config(use_gpu, device, device_idx):
     with open(config_path, 'r') as f:
         config = json.load(f)
     EOS_token = '<EOS>'
+    SOS_token = '<SOS>'
     if args.debug:
-        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_debug(config, EOS_token, device)
+        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_debug(config, SOS_token, EOS_token, device)
     elif args.dummy_fixed_length:
-        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_dummy_fixed_length(config, EOS_token, device)
+        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_dummy_fixed_length(config, SOS_token, EOS_token, device)
     elif args.dummy_variable_length:
-        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_dummy_variable_length(config, EOS_token, device)
+        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_dummy_variable_length(config, SOS_token, EOS_token, device)
     else:
-        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_iwslt(config, EOS_token, device)
+        train_iter, val_iter, src_language, trg_language, _, val_dataset = load_iwslt(config, SOS_token, EOS_token, device)
     if args.name is not None:
         config['name'] = args.name
     file_path = os.path.dirname(os.path.realpath(__file__))
     config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
     config['EOS_token'] = EOS_token
+    config['SOS_token'] = EOS_token
     config['source_vocabulary_size'] = len(src_language.itos)
     config['target_vocabulary_size'] = len(trg_language.itos)
     config['train_iter'] = train_iter

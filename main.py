@@ -37,6 +37,8 @@ def train(config, sample_validation_batches):
     target_language = config.get('trg_language')
     EOS_token = config.get('EOS_token')
     EOS = target_language.stoi[EOS_token]
+    SOS_token = config.get('SOS_token')
+    SOS = target_language.stoi[SOS_token]
     train_iter = config.get('train_iter')
     writer_path = config.get('writer_path')
     writer_train_path = get_or_create_dir(writer_path, 'train')
@@ -55,7 +57,7 @@ def train(config, sample_validation_batches):
     step = 1
     for epoch in range(epochs):
         for i, train_pair in enumerate(train_iter):
-            loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, EOS, train_pair)
+            loss = train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_pair)
 
             writer_train.add_scalar('loss', loss, step)
 
@@ -64,38 +66,39 @@ def train(config, sample_validation_batches):
                 val_lengths = 64
                 val_batches = sample_validation_batches(val_lengths)
                 for val_pair in val_batches:
-                    val_loss, _, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, EOS, val_pair)
+                    val_loss, _, _ = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
                     val_losses += val_loss
                 val_loss = val_losses / val_lengths
                 writer_val.add_scalar('loss', val_loss, step)
 
             if (i + 1) % sample_every == 0:
                 val_pair = sample_validation_batches(1)[0]
-                _, translation, attention_weights = evaluate_sentence_pair(encoder, decoder, loss_fn, EOS, val_pair)
+                _, translation, attention_weights = evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, val_pair)
                 source_words = torch2words(source_language, val_pair.src)
-                target_words = list2words(target_language, val_pair.trg)
+                target_words = torch2words(target_language, val_pair.trg)
                 translation_words = list2words(target_language, translation)
                 attention_figure = visualize_attention(source_words, translation_words, attention_weights)
-                text = get_text(source_words, target_words, translation_words, EOS_token)
+                text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token)
                 writer_val.add_figure('attention', attention_figure, step)
                 writer_val.add_text('translation', text, step)
 
             step += 1
 
 
-def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, EOS, pair):
+def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, pair):
     encoder.train()
     decoder.train()
 
     source_sentence = pair.src
-    target_sentence = pair.trg
+    # ignore first part of target sentence since we are not interested in SOS
+    target_sentence = pair.trg[1:]
     encoder_hidden = encoder.init_hidden()
     source_sentence_length = source_sentence.size(0)
     target_sentence_length = target_sentence.size(0)
 
     encoder_output, encoder_hidden = encoder(source_sentence, encoder_hidden)
     context = encoder_output[source_sentence_length - 1].unsqueeze(0)
-    decoder_input = with_gpu(torch.LongTensor([[EOS]]))
+    decoder_input = with_gpu(torch.LongTensor([[SOS]]))
     decoder_hidden = encoder_hidden
 
     loss = with_gpu(torch.FloatTensor([0]))
@@ -118,20 +121,21 @@ def train_sentence_pair(encoder, decoder, encoder_optimizer, decoder_optimizer, 
     return with_cpu(loss)
 
 
-def evaluate_sentence_pair(encoder, decoder, loss_fn, EOS, pair):
+def evaluate_sentence_pair(encoder, decoder, loss_fn, SOS, EOS, pair):
     with torch.no_grad():
         encoder.eval()
         decoder.eval()
 
         source_sentence = pair.src
-        target_sentence = pair.trg
+        # ignore first part of target sentence since we are not interested in SOS
+        target_sentence = pair.trg[1:]
         encoder_hidden = encoder.init_hidden()
         source_sentence_length = source_sentence.size(0)
         target_sentence_length = target_sentence.size(0)
 
         encoder_output, encoder_hidden = encoder(source_sentence, encoder_hidden)
         context = encoder_output[source_sentence_length - 1].unsqueeze(0)
-        decoder_input = with_gpu(torch.LongTensor([[EOS]]))
+        decoder_input = with_gpu(torch.LongTensor([[SOS]]))
         decoder_hidden = encoder_hidden
 
         decoded_words = []

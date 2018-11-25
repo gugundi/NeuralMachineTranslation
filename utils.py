@@ -81,9 +81,9 @@ def create_dummy_variable_length_csv():
     val.to_csv('.data/dummy_variable_length/val.csv', index=False)
 
 
-def load_from_csv(config, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
+def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
     source_field = torchtext.data.Field(tokenize=source_tokenizer, eos_token=EOS_token)
-    target_field = torchtext.data.Field(tokenize=target_tokenizer, eos_token=EOS_token)
+    target_field = torchtext.data.Field(tokenize=target_tokenizer, init_token=SOS_token, eos_token=EOS_token)
     data_fields = [('src', source_field), ('trg', target_field)]
     train, val = torchtext.data.TabularDataset.splits(
         path=csv_dir_path,
@@ -119,16 +119,16 @@ def torch2words(language, sentence):
     return list(sentence)
 
 
-def words2text(words, EOS_token):
-    sentence = filter(lambda word: word != EOS_token, words)
+def words2text(words, SOS_token, EOS_token):
+    sentence = filter(lambda word: word != SOS_token and word != EOS_token, words)
     sentence = " ".join(sentence)
     return sentence
 
 
-def get_text(source_words, target_words, translation_words, EOS_token):
-    source = words2text(source_words, EOS_token)
-    target = words2text(target_words, EOS_token)
-    translation = words2text(translation_words, EOS_token)
+def get_text(source_words, target_words, translation_words, SOS_token, EOS_token):
+    source = words2text(source_words, SOS_token, EOS_token)
+    target = words2text(target_words, SOS_token, EOS_token)
+    translation = words2text(translation_words, SOS_token, EOS_token)
     return f"""
     Source: \"{source}\"
     Target: \"{target}\"
