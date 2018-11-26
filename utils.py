@@ -99,7 +99,7 @@ def load_from_csv(config, SOS_token, EOS_token, csv_dir_path, source_tokenizer, 
     target_field.build_vocab(train, val, max_size=target_vocabulary_size)
     train_iter, val_iter = torchtext.data.BucketIterator.splits(
         (train, val),
-        batch_size=1,
+        batch_size=config.get('batch_size'),
         device=device,
         shuffle=True,
         sort_key=lambda x: len(x.src)

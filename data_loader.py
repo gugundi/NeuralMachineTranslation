@@ -64,7 +64,7 @@ def load_iwslt(config, SOS_token, EOS_token, device):
     # make iterator for splits in IWSLT
     train_iter_iwslt, val_iter_iwslt = torchtext.data.BucketIterator.splits(
         (train_iwslt, val_iwslt),
-        batch_size=1,
+        batch_size=config.get('batch_size'),
         device=device,
         shuffle=True
     )

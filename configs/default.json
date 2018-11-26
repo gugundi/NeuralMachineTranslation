@@ -2,6 +2,7 @@
   "attention": {
     "window_size": 3
   },
+  "batch_size": 16,
   "epochs": 16,
   "loss_fn": "NLLLoss",
   "name": "default",
