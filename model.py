@@ -127,6 +127,8 @@ class Attention(nn.Module):
             window_size = window_end - window_start + 1
             h_s[:window_size, i] = h_s_batch[window_start:window_end+1, i]
             positions = torch.arange(window_start, window_end + 1, device=self.device, dtype=torch.float)
+            print('window size: {window_size}')
+            print(torch.exp((positions - p) / (2 * self.std_squared)).shape)
             gaussian_batch[i, :window_size] = torch.exp((positions - p) / (2 * self.std_squared))
         h_s_batch = h_s
 
