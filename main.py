@@ -133,9 +133,8 @@ def evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, batch, batch_size):
         decoder_hidden = encoder_hidden
 
         decoded_words = [[] * batch_size]
-        # attention_weights = with_gpu(torch.zeros(batch_size, 0, source_sentence_length))
-        attention_weights = None
-        max_length = max(10, 2 * target_sentence_length)
+        max_length = target_sentence_length + 5
+        attention_weights = with_gpu(torch.zeros(batch_size, max_length, source_sentence_length))
         loss = with_gpu(torch.FloatTensor([0]))
         i = 0
         while True:
@@ -148,17 +147,12 @@ def evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, batch, batch_size):
                 target = target_batch[i]
                 loss += loss_fn(y, target).item()
             weights_batch, window_start_batch, window_end_batch = attention
-            for weights, window_start, window_end in zip(weights_batch, window_start_batch, window_end_batch):
-                attention_weights_row = with_gpu(torch.zeros(batch_size, 1, source_sentence_length))
-                attention_weights_row[:, 0, window_start:window_end+1] = weights
-                if attention_weights is None:
-                    attention_weights = attention_weights_row
-                else:
-                    attention_weights = torch.cat((attention_weights, attention_weights_row))
+            for j, (weights, window_start, window_end) in enumerate(zip(weights_batch, window_start_batch, window_end_batch)):
+                attention_weights[j, i, window_start:window_end+1] = weights
             for j, words in enumerate(decoded_words):
                 words.append(decoded_word[0, j].item())
             has_reached_eos = all(map(lambda word: word.item() == EOS, decoded_word.squeeze()))
-            if has_reached_eos or (i + 1) > max_length:
+            if has_reached_eos or (i + 1) == max_length:
                 break
             i += 1
 
