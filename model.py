@@ -11,7 +11,7 @@ class Encoder(nn.Module):
         source_vocabulary_size = config.get('source_vocabulary_size')
         dropout = rnn_config.get('dropout')
         self.device = device
-        self.batch_size = rnn_config.get('batch_size')
+        self.batch_size = config.get('batch_size')
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -47,7 +47,7 @@ class Decoder(nn.Module):
         dropout = rnn_config.get('dropout')
         window_size = attention_config.get('window_size')
         self.device = device
-        self.batch_size = rnn_config.get('batch_size')
+        self.batch_size = config.get('batch_size')
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
