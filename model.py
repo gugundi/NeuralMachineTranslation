@@ -111,39 +111,41 @@ class Attention(nn.Module):
         p_batch = self.tanh(self.fc1(h_t_batch))
         p_batch = S * self.sigmoid(self.fc2(p_batch))
 
-        # h_s: length x batch_sixe x hidden_size
-
         max_window_size = 2 * self.window_size + 1
-        h_s_batch = torch.zeros(max_window_size, batch_size, self.hidden_size, device=self.device, dtype=torch.float)
-        window_start_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
-        window_end_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
-        gaussian_batch = torch.zeros(batch_size, max_window_size, device=self.device, dtype=torch.float)
+        h_s = torch.zeros(max_window_size, self.batch_size, self.hidden_size, device=self.device, dtype=torch.float)
+        window_start_batch = torch.zeros(self.batch_size, 1, device=self.device, dtype=torch.int)
+        window_end_batch = torch.zeros(self.batch_size, 1, device=self.device, dtype=torch.int)
+        gaussian_batch = torch.zeros(self.batch_size, 1, max_window_size, device=self.device, dtype=torch.float)
         for i in range(self.batch_size):
-            p = p_batch[i]
+            p = p_batch[0, i]
             window_start = torch.clamp(p - self.window_size, min=0)
             window_end = torch.clamp(p + self.window_size, max=S - 1)
-            window_start = torch.round(window_start).int()
-            window_end = torch.round(window_end).int()
-            h_s = h_s_batch[window_start:window_end+1, i]
-            window_start_batch[i] = window_start[i]
-            window_end_batch[i] = window_end[i]
+            window_start = torch.round(window_start).int().item()
+            window_end = torch.round(window_end).int().item()
+            h_s[:, i] = h_s_batch[window_start:window_end+1, i]
+            window_start_batch[i] = window_start
+            window_end_batch[i] = window_end
             positions = torch.arange(window_start, window_end + 1, device=self.device, dtype=torch.float)
-            gaussian_batch[i] = torch.exp((positions - p) / (2 * self.std_squared))
+            gaussian_batch[i, 0] = torch.exp((positions - p) / (2 * self.std_squared))
         h_s_batch = h_s
 
-        # batch first
-        h_s_batch = h_s_batch.permute(1, 2, 0)
+        # batch x window x hidden
+        h_s_batch = h_s_batch.permute(1, 0, 2)
         h_t_batch = h_t_batch.permute(1, 0, 2)
 
-        a = self.softmax(self.score(h_s_batch, h_t_batch))
-        a = a * gaussian_batch
+        # batch x 1 x window
+        a_batch = self.softmax(self.score(h_s_batch, h_t_batch))
+        a_batch = a_batch * gaussian_batch
 
-        # sequence before hidden size
-        h_s_batch = h_s_batch.permute(0, 2, 1)
+        c = torch.bmm(a_batch, h_s_batch)
 
-        c = torch.bmm(a, h_s_batch)
+        # 1 x batch x window
+        c = c.permute(1, 0, 2)
 
-        return c, (a, window_start_batch, window_end_batch)
+        return c, (a_batch, window_start_batch, window_end_batch)
 
     def score(self, h_s, h_t):
+        # h_s : batch x length x hidden
+        # h_t : batch x 1 x hidden
+        h_s = h_s.transpose(1, 2)
         return torch.bmm(h_t, h_s)

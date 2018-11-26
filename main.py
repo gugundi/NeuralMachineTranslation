@@ -4,7 +4,6 @@ from random import sample
 from tensorboardX import SummaryWriter
 import torchtext
 import torch
-from torch.nn.utils.rnn import pad_sequence
 from utils import get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
@@ -65,22 +64,18 @@ def train(config, sample_validation_batches):
             writer_train.add_scalar('loss', loss, step)
 
             if (i + 1) % eval_every == 0:
-                val_lengths = 64
-                val_batch = sample_validation_batches(val_lengths)
-                val_loss, _, _ = evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, val_batch, val_lengths)
+                val_batch = sample_validation_batches(batch_size)
+                val_loss, translation, attention_weights = evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, val_batch, batch_size)
                 writer_val.add_scalar('loss', val_loss, step)
 
-            if (i + 1) % sample_every == 0:
-                val_lengths = 1
-                val_batch = sample_validation_batches(val_lengths)
-                _, translation, attention_weights = evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, val_batch, val_lengths)
-                source_words = torch2words(source_language, val_batch.src)
-                target_words = torch2words(target_language, val_batch.trg)
-                translation_words = list2words(target_language, translation)
-                attention_figure = visualize_attention(source_words, translation_words, attention_weights)
-                text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token)
-                writer_val.add_figure('attention', attention_figure, step)
-                writer_val.add_text('translation', text, step)
+                if (i + 1) % sample_every == 0:
+                    source_words = torch2words(source_language, val_batch.src[:, 0])
+                    target_words = torch2words(target_language, val_batch.trg[:, 0])
+                    translation_words = list2words(target_language, translation[0])
+                    attention_figure = visualize_attention(source_words, translation_words, attention_weights[0])
+                    text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token)
+                    writer_val.add_figure('attention', attention_figure, step)
+                    writer_val.add_text('translation', text, step)
 
             step += 1
 
@@ -89,9 +84,9 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     encoder.train()
     decoder.train()
 
-    source_batch = pad_sequence(batch.src)
+    source_batch = batch.src
     # ignore first part of target sentence since we are not interested in SOS
-    target_batch = pad_sequence(batch.trg[1:])
+    target_batch = batch.trg[1:]
     encoder_hidden = encoder.init_hidden()
     source_sentence_length = source_batch.size(0)
     target_sentence_length = target_batch.size(0)
@@ -104,11 +99,12 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     for i in range(target_sentence_length):
         y, _, decoder_hidden, _ = decoder(source_sentence_length, encoder_output, decoder_input, decoder_hidden)
         topv, topi = y.topk(1)
-        decoder_input = topi.detach().view(batch_size, 1)
-        target = target_sentence[i]
+        decoder_input = topi.detach().view(1, batch_size)
+        target = target_batch[i]
         y = y.view(batch_size, -1)
         loss += loss_fn(y, target)
-        if decoder_input.item() == EOS:
+        has_reached_eos = all(map(lambda word: word.item() == EOS, decoder_input.squeeze()))
+        if has_reached_eos:
             break
 
     encoder_optimizer.zero_grad()
@@ -125,9 +121,9 @@ def evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, batch, batch_size):
         encoder.eval()
         decoder.eval()
 
-        source_batch = pad_sequence(batch.src)
+        source_batch = batch.src
         # ignore first part of target sentence since we are not interested in SOS
-        target_batch = pad_sequence(batch.trg[1:])
+        target_batch = batch.trg[1:]
         encoder_hidden = encoder.init_hidden()
         source_sentence_length = source_batch.size(0)
         target_sentence_length = target_batch.size(0)
@@ -137,15 +133,16 @@ def evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, batch, batch_size):
         decoder_hidden = encoder_hidden
 
         decoded_words = [[] * batch_size]
-        attention_weights = with_gpu(torch.zeros(batch_size, 0, source_sentence_length))
+        # attention_weights = with_gpu(torch.zeros(batch_size, 0, source_sentence_length))
+        attention_weights = None
         max_length = max(10, 2 * target_sentence_length)
         loss = with_gpu(torch.FloatTensor([0]))
         i = 0
         while True:
             y, _, decoder_hidden, attention = decoder(source_sentence_length, encoder_output, decoder_input, decoder_hidden)
             topv, topi = y.topk(1)
-            decoder_input = topi.view(batch_size, 1)
-            decoded_word = topi.item()
+            decoder_input = topi.view(1, batch_size)
+            decoded_word = decoder_input
             y = y.view(batch_size, -1)
             if i < target_sentence_length:
                 target = target_batch[i]
@@ -154,10 +151,13 @@ def evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, batch, batch_size):
             for weights, window_start, window_end in zip(weights_batch, window_start_batch, window_end_batch):
                 attention_weights_row = with_gpu(torch.zeros(batch_size, 1, source_sentence_length))
                 attention_weights_row[:, 0, window_start:window_end+1] = weights
-                attention_weights = torch.cat((attention_weights, attention_weights_row))
+                if attention_weights is None:
+                    attention_weights = attention_weights_row
+                else:
+                    attention_weights = torch.cat((attention_weights, attention_weights_row))
             for j, words in enumerate(decoded_words):
-                words.append(decoded_word[j].item())
-            has_reached_eos = all(map(lambda word: word == EOS, decoded_word))
+                words.append(decoded_word[0, j].item())
+            has_reached_eos = all(map(lambda word: word.item() == EOS, decoded_word.squeeze()))
             if has_reached_eos or (i + 1) > max_length:
                 break
             i += 1
