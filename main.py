@@ -59,8 +59,8 @@ def train(config, sample_validation_batches):
     sample_every = training.get('sample_every')
     step = 1
     for epoch in range(epochs):
-        for i, train_batch in enumerate(train_iter):
-            loss = train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, train_batch, batch_size)
+        for i, training_batch in enumerate(train_iter):
+            loss = train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, training_batch, batch_size)
 
             writer_train.add_scalar('loss', loss, step)
 
