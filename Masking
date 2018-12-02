@@ -1,4 +1,6 @@
 # Masking
+
+
 class SelfAttention(nn.Module):
     def __init__(self, hidden_size, batch_first=False):
         super(SelfAttention, self).__init__()
@@ -57,13 +59,5 @@ class SelfAttention(nn.Module):
         
         
 
-Def mask(self):
-  x = self.embbeding(x)
-  x = F.padding(x, louns)
-  x, h_t = self.lstm(x)
-  x = F.rev.pad(x)
-  sigma = sigma(nn(h_t)
   
-  
-  
-  
+   
