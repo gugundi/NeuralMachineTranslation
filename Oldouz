@@ -1,0 +1,4 @@
+# Masking
+
+Def mask(self):
+  x = self.embbeding
