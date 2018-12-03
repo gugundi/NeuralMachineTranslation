@@ -94,7 +94,7 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     decoder.train()
 
     print(batch)
-    print(batch.src[0])
+    print(batch.src[1])
 
     source_batch = batch.src[1]
     target_batch = batch.trg[1]
