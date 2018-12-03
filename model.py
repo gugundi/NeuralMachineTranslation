@@ -113,6 +113,7 @@ class Attention(nn.Module):
         window_start_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
         window_end_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
         gaussian_batch = torch.zeros(batch_size, 1, max_window_length, device=self.device, dtype=torch.float)
+        mask_batch = torch.ones(batch_size, 1, max_window_length, device=self.device, dtype=torch.int)
         for i in range(batch_size):
             p = p_batch[0, i]
             window_start = torch.clamp(p - self.window_size, min=0)
@@ -128,6 +129,10 @@ class Attention(nn.Module):
                     window_end += max_window_length - window_length
             window_start_batch[i] = window_start
             window_end_batch[i] = window_end
+
+            # update mask_batch
+            mask_batch[i, 0, S:] = 0
+
             h_s[:, i] = h_s_batch[window_start:window_end+1, i]
             positions = torch.arange(window_start, window_end + 1, device=self.device, dtype=torch.float)
             gaussian_batch[i, 0, :] = torch.exp(-(positions - p) ** 2 / (2 * self.std_squared))
@@ -140,6 +145,9 @@ class Attention(nn.Module):
         # batch x 1 x window
         a_batch = self.softmax(self.score(h_s_batch, h_t_batch))
         a_batch = a_batch * gaussian_batch
+
+        # apply mask
+        a_batch = a_batch * mask_batch
 
         c = torch.bmm(a_batch, h_s_batch)
 
