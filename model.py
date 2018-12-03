@@ -113,7 +113,7 @@ class Attention(nn.Module):
         window_start_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
         window_end_batch = torch.zeros(batch_size, 1, device=self.device, dtype=torch.int)
         gaussian_batch = torch.zeros(batch_size, 1, max_window_length, device=self.device, dtype=torch.float)
-        mask_batch = torch.ones(batch_size, 1, max_window_length, device=self.device, dtype=torch.int)
+        mask_batch = torch.ones(batch_size, 1, max_window_length, device=self.device, dtype=torch.float)
         for i in range(batch_size):
             p = p_batch[0, i]
             window_start = torch.clamp(p - self.window_size, min=0)
