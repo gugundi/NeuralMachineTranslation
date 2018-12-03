@@ -93,13 +93,15 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     encoder.train()
     decoder.train()
 
+    print(batch)
+
     source_batch = batch.src
     target_batch = batch.trg
     batch_size = source_batch.shape[1]
     encoder_hidden = encoder.init_hidden(batch_size)
     source_sentence_length = source_batch.size(0)
     target_sentence_length = target_batch.size(0)
-    actual_sentence_lengths = with_gpu(torch.zeros(batch_size, 1))
+    actual_sentence_lengths = batch.scrlengths
     for i, sentence in enumerate(source_batch):
         l = 0
         for j in range(source_sentence_length):
