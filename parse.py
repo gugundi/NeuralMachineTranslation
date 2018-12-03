@@ -3,6 +3,7 @@ from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable
 import json
 from model import Encoder, Decoder
 import os
+import torch.nn as nn
 import torch.optim as optim
 from utils import get_or_create_dir
 
@@ -36,8 +37,11 @@ def get_config(use_gpu, device, device_idx):
     file_path = os.path.dirname(os.path.realpath(__file__))
     config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
     config['EOS_token'] = EOS_token
+    config['EOS'] = trg_language.stoi[EOS_token]
     config['PAD_token'] = PAD_token
+    config['PAD'] = trg_language.stoi[PAD_token]
     config['SOS_token'] = SOS_token
+    config['SOS'] = trg_language.stoi[SOS_token]
     config['source_vocabulary_size'] = len(src_language.itos)
     config['target_vocabulary_size'] = len(trg_language.itos)
     config['train_iter'] = train_iter
@@ -52,6 +56,7 @@ def get_config(use_gpu, device, device_idx):
         config["encoder"] = config["encoder"].to(device)
     config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
+    config['loss_fn'] = nn.CrossEntropyLoss()
     return config
 
 

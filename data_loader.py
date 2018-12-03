@@ -46,8 +46,19 @@ def load_iwslt(config, SOS_token, EOS_token, PAD_token, device):
     print("Started data-loader: IWSLT (de-en)")
 
     # set up fields for IWSLT
-    DE_IWSLT = torchtext.data.Field(tokenize=tokenize_de, init_token=SOS_token, eos_token=EOS_token, pad_token=PAD_token)
-    EN_IWSLT = torchtext.data.Field(tokenize=tokenize_en, init_token=SOS_token, eos_token=EOS_token, pad_token=PAD_token)
+    DE_IWSLT = torchtext.data.Field(
+        tokenize=tokenize_de,
+        init_token=SOS_token,
+        eos_token=EOS_token,
+        pad_token=PAD_token,
+        include_lengths=True
+    )
+    EN_IWSLT = torchtext.data.Field(
+        tokenize=tokenize_en,
+        init_token=SOS_token,
+        eos_token=EOS_token,
+        pad_token=PAD_token
+    )
 
     print("Making splits for IWSLT")
     # make splits for data in IWSLT
