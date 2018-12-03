@@ -4,11 +4,15 @@ from random import sample
 from tensorboardX import SummaryWriter
 import torchtext
 import torch
+import torch.nn as nn
 from utils import get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
 # TODO: reverse source sentence for better results
+# TODO: replace NLLLoss with CrossEntropyLoss (also remove softmax from decoder)
+# TODO: fix window start and end problems
+# TODO: add simple progress to stdout (e.g. iteration x/n)
 
 
 def main():
@@ -49,7 +53,7 @@ def train(config, sample_validation_batches):
     writer_val = SummaryWriter(log_dir=writer_val_path)
     batch_size = config.get('batch_size')
     epochs = config.get('epochs')
-    loss_fn = config.get('loss_fn')
+    loss_fn = nn.CrossEntropyLoss()
     decoder = config['decoder']
     encoder = config['encoder']
     decoder_optimizer = config['decoder_optimizer']
@@ -64,12 +68,15 @@ def train(config, sample_validation_batches):
 
             writer_train.add_scalar('loss', loss, step)
 
-            if (i + 1) % eval_every == 0:
+            should_evaluate = (i + 1) % eval_every == 0
+            should_sample = (i + 1) % sample_every == 0
+            if should_evaluate or should_sample:
                 val_batch = sample_validation_batches(batch_size)
                 val_loss, translation, attention_weights = evaluate_batch(encoder, decoder, loss_fn, SOS, EOS, val_batch)
-                writer_val.add_scalar('loss', val_loss, step)
+                if should_evaluate:
+                    writer_val.add_scalar('loss', val_loss, step)
 
-                if (i + 1) % sample_every == 0:
+                if should_sample:
                     source_words = torch2words(source_language, val_batch.src[:, 0])
                     target_words = torch2words(target_language, val_batch.trg[:, 0])
                     translation_words = list2words(target_language, translation)

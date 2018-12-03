@@ -4,7 +4,6 @@
   },
   "batch_size": 16,
   "epochs": 16,
-  "loss_fn": "NLLLoss",
   "name": "default",
   "optimizer": {
     "momentum": 0.9,

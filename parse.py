@@ -3,7 +3,6 @@ from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable
 import json
 from model import Encoder, Decoder
 import os
-import torch.nn as nn
 import torch.optim as optim
 from utils import get_or_create_dir
 
@@ -53,7 +52,6 @@ def get_config(use_gpu, device, device_idx):
         config["encoder"] = config["encoder"].to(device)
     config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
-    config['loss_fn'] = get_loss_fn(config)
     return config
 
 
@@ -76,16 +74,6 @@ def parse_arguments():
     parser.add_argument('--dummy_variable_length', type=str2bool, default=False, const=True, nargs='?', help=dummy_variable_length_help)
     parser.add_argument('--name', default=None, type=str, help='Name used when writing to tensorboard.')
     return parser.parse_args()
-
-
-def get_loss_fn(config):
-    loss_fn = config.get('loss_fn')
-    if loss_fn == 'CrossEntropyLoss':
-        return nn.CrossEntropyLoss()
-    elif loss_fn == 'NLLLoss':
-        return nn.NLLLoss()
-    else:
-        raise Exception(f'Unknown loss function: {loss_fn}')
 
 
 def get_optimizer(config, model):
