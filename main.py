@@ -45,6 +45,7 @@ def train(config, sample_validation_batches):
     PAD_token = config.get('PAD_token')
     SOS_token = config.get('SOS_token')
     SOS = target_language.stoi[SOS_token]
+    PAD = target_language.stoi[PAD_token]
     train_iter = config.get('train_iter')
     writer_path = config.get('writer_path')
     writer_train_path = get_or_create_dir(writer_path, 'train')
@@ -64,7 +65,7 @@ def train(config, sample_validation_batches):
     step = 1
     for epoch in range(epochs):
         for i, training_batch in enumerate(train_iter):
-            loss = train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, training_batch)
+            loss = train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, PAD, training_batch)
 
             writer_train.add_scalar('loss', loss, step)
 
@@ -88,7 +89,7 @@ def train(config, sample_validation_batches):
             step += 1
 
 
-def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, batch):
+def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn, SOS, EOS, PAD, batch):
     encoder.train()
     decoder.train()
 
@@ -98,7 +99,17 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     encoder_hidden = encoder.init_hidden(batch_size)
     source_sentence_length = source_batch.size(0)
     target_sentence_length = target_batch.size(0)
+    actual_sentence_lengths = with_gpu(torch.zeros(batch_size, 1))
+    for i, sentence in iterate(source_batch):
+        l = 0
+        for j in range(source_sentence_length):
+            if not sentence[j] == PAD:
+                l = l + 1
+            else:
+                break
+        actual_sentence_lengths[i] = l
 
+    print(f'Length of sentences: {actual_sentence_lengths}')
     encoder_output, encoder_hidden = encoder(source_batch, encoder_hidden)
     decoder_input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
     decoder_hidden = encoder_hidden
