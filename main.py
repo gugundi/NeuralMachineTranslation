@@ -94,9 +94,10 @@ def train_batch(encoder, decoder, encoder_optimizer, decoder_optimizer, loss_fn,
     decoder.train()
 
     print(batch)
+    print(batch.src[0])
 
-    source_batch = batch.src
-    target_batch = batch.trg
+    source_batch = batch.src[1]
+    target_batch = batch.trg[1]
     batch_size = source_batch.shape[1]
     encoder_hidden = encoder.init_hidden(batch_size)
     source_sentence_length = source_batch.size(0)
