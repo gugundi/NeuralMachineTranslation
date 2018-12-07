@@ -85,6 +85,7 @@ def train_batch(config, batch):
     encoder, decoder = config.get('encoder'), config.get('decoder')
     encoder_optimizer, decoder_optimizer = config.get('encoder_optimizer'), config.get('decoder_optimizer')
     PAD = config.get('PAD')
+    SOS = config.get('SOS')
     window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
 
@@ -102,7 +103,7 @@ def train_batch(config, batch):
 
     losses = with_gpu(torch.empty((batch_size, T), dtype=torch.float))
     for i in range(T):
-        y, input, hidden, _ = decode_word(decoder, encoder_output_padded, input, hidden, S, batch_size, target_batch)
+        y, input, hidden, _ = decode_word(decoder, encoder_output_padded, input, hidden, S, batch_size)
         compute_word_loss(batch_size, losses, i, y, target_batch, loss_fn)
     loss = compute_batch_loss(losses, mask, lengths)
 
