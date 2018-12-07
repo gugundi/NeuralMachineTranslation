@@ -56,6 +56,7 @@ def get_config(use_gpu, device, device_idx):
         config["encoder"] = config["encoder"].to(device)
     config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
+    config['window_size'] = config.get('window_size')
     config['loss_fn'] = nn.CrossEntropyLoss()
     return config
 
