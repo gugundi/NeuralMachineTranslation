@@ -70,10 +70,10 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, source_sentence_length, encoder_output, word, hidden, batch_size):
+    def forward(self, source_sentence_length, encoder_output, word, hidden, batch_size, lengths):
         embedded = self.embedding(word)
         output, hidden = self.lstm(embedded, hidden)
-        c, a = self.attention(source_sentence_length, encoder_output, output, batch_size)
+        c, a = self.attention(source_sentence_length, encoder_output, output, batch_size, lengths)
         output = torch.cat((c, output), 2)
         output = self.tanh(self.fc1(output))
         y = self.fc2(output)
@@ -100,7 +100,9 @@ class Attention(nn.Module):
         self.fc1 = nn.Linear(in_features=hidden_size, out_features=math.ceil(hidden_size / 2))
         self.fc2 = nn.Linear(in_features=math.ceil(hidden_size / 2), out_features=1)
 
-    def forward(self, S, encoder_output, decoder_output, batch_size):
+    def forward(self, S, encoder_output, decoder_output, batch_size, lengths):
+        s0 = lengths[0].item()
+        lengths = lengths.view(batch_size, 1)
         window_length = 2 * self.window_size + 1
         # h_s: batch_size x (window_size + S + window_size) x hidden
         h_s = encoder_output
@@ -111,19 +113,17 @@ class Attention(nn.Module):
 
         # batch_size x 1
         p = self.tanh(self.fc1(h_t))
-        p = self.window_size + S * self.sigmoid(self.fc2(p))
+        p = self.sigmoid(self.fc2(p))
         p = p.view(batch_size, 1)
+        p = self.window_size + lengths.float() * p
 
         window_start = torch.round(p - self.window_size).int()
-        window_end = torch.round(p + self.window_size).int()
+        window_end = window_start + window_length
         positions = torch.empty((batch_size, window_length), device=self.device, dtype=torch.float)
         selection = torch.empty((batch_size, window_length, self.hidden_size), device=self.device, dtype=torch.float)
         for i in range(batch_size):
             start = window_start[i].item()
-            end = window_end[i].item() + 1
-            if end - start < window_length:
-                print(f'S = {S}, p = {p}, start = {start}, end={end}, window_length = {window_length}, window_size={self.window_size}')
-                print('')
+            end = window_end[i].item()
             positions[i] = torch.arange(start, end, device=self.device, dtype=torch.float)
             selection[i] = h_s[i, start:end]
 
@@ -135,13 +135,14 @@ class Attention(nn.Module):
         epsilon = 1e-14
         score = self.score(selection, h_t)
         for i in range(batch_size):
+            li = lengths[i].item()
             start = window_start[i].item()
             end = window_end[i].item()
             if start < self.window_size:
                 d = self.window_size - start
                 score[i, 0, :d] = epsilon
-            if end > S + self.window_size:
-                d = (S + self.window_size) - end
+            if end > li + self.window_size:
+                d = (li + self.window_size) - end
                 score[i, 0, d:] = epsilon
 
         # batch_size x 1 x window_length
@@ -155,31 +156,31 @@ class Attention(nn.Module):
         c = c.permute(1, 0, 2)
 
         # insert weights of first sentence for eventual visualiation
-        weights = torch.zeros((1, S), device=self.device, dtype=torch.float)
+        weights = torch.zeros((1, s0), device=self.device, dtype=torch.float)
         start = window_start[0].item()
         end = window_end[0].item()
-        if start < self.window_size and end > self.window_size + S - 1:
+        if start < self.window_size and end > self.window_size + s0:
             # overflow in both ends
             weights_start = 0
-            weights_end = S
+            weights_end = s0
             a_start = self.window_size - start
-            a_end = a_start + S
+            a_end = a_start + s0
         elif start < self.window_size:
             # overflow in left side only
             weights_start = 0
-            weights_end = end - self.window_size + 1
+            weights_end = end - self.window_size
             a_start = self.window_size - start
             a_end = window_length
-        elif end > self.window_size + S - 1:
+        elif end > self.window_size + s0:
             # overflow in right side only
             weights_start = start - self.window_size
-            weights_end = S
+            weights_end = s0
             a_start = 0
             a_end = a_start + (weights_end - weights_start)
         else:
             # a is contained in sentence
             weights_start = start - self.window_size
-            weights_end = end - self.window_size + 1
+            weights_end = end - self.window_size
             a_start = 0
             a_end = window_length
         weights[0, weights_start:weights_end] = a[0, 0, a_start:a_end]

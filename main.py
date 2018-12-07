@@ -9,10 +9,11 @@ from utils import get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
+# TODO: find out why loss function explodes
+# TODO: teacher forcing?
 # TODO: perhaps add input-feedinig again
 # TODO: reverse source sentence for better results
 # TODO: look in to using torch pad function instead of pad_with_window_size
-# TODO: remove padding from attention visualization
 
 
 def main():
@@ -72,12 +73,13 @@ def train(config, sample_validation_batches):
                 if should_evaluate:
                     writer_val.add_scalar('loss', val_loss, step)
                 if should_sample:
-                    val_batch_src, _ = val_batch.src
+                    val_batch_src, val_lengths_src = val_batch.src
                     val_batch_trg, _ = val_batch.trg
+                    s0 = val_lengths_src[0].item()
                     source_words = torch2words(source_language, val_batch_src[:, 0])
                     target_words = torch2words(target_language, val_batch_trg[:, 0])
                     translation_words = list2words(target_language, translation)
-                    attention_figure = visualize_attention(source_words, translation_words, attention_weights)
+                    attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
                     text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
                     writer_val.add_figure('attention', attention_figure, step)
                     writer_val.add_text('translation', text, step)
@@ -96,9 +98,10 @@ def train_batch(config, batch):
     encoder.train()
     decoder.train()
 
+    _, source_lengths = batch.src
     target_batch, _ = batch.trg
     _, batch_size = target_batch.size()
-    mask, lengths = create_mask(batch.trg)
+    mask, target_lengths = create_mask(batch.trg)
     encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
 
     input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
@@ -106,9 +109,9 @@ def train_batch(config, batch):
 
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
-        y, input, hidden, _ = decode_word(decoder, encoder_output, input, hidden, S, batch_size)
+        y, input, hidden, _ = decode_word(decoder, encoder_output, input, hidden, S, batch_size, source_lengths)
         compute_word_loss(losses, i, y, target_batch, loss_fn)
-    loss = compute_batch_loss(losses, mask, lengths)
+    loss = compute_batch_loss(losses, mask, target_lengths)
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -131,9 +134,10 @@ def evaluate_batch(config, batch):
         encoder.eval()
         decoder.eval()
 
+        _, source_lengths = batch.src
         target_batch, _ = batch.trg
         batch_size = target_batch.size()[1]
-        mask, lengths = create_mask(batch.trg)
+        mask, target_lengths = create_mask(batch.trg)
         encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
 
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
@@ -141,10 +145,10 @@ def evaluate_batch(config, batch):
 
         first_sentence_has_reached_eos = False
         decoded_words = []
-        attention_weights = with_gpu(torch.zeros(0, S))
+        attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
-            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, S, batch_size)
+            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, S, batch_size, source_lengths)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
             decoded_word = input
 
@@ -155,7 +159,7 @@ def evaluate_batch(config, batch):
                 decoded_word_of_first_sentence = decoded_word[0, 0].item()
                 decoded_words.append(decoded_word_of_first_sentence)
                 first_sentence_has_reached_eos = decoded_word_of_first_sentence == EOS
-        loss = compute_batch_loss(losses, mask, lengths)
+        loss = compute_batch_loss(losses, mask, target_lengths)
 
         return with_cpu(loss), decoded_words, with_cpu(attention_weights)
 
@@ -172,8 +176,8 @@ def encode(encoder, batch, window_size, PAD):
     return output, hidden, S, T
 
 
-def decode_word(decoder, encoder_output, decoder_input, decoder_hidden, S, batch_size):
-    y, _, decoder_hidden, attention = decoder(S, encoder_output, decoder_input, decoder_hidden, batch_size)
+def decode_word(decoder, encoder_output, decoder_input, decoder_hidden, S, batch_size, lengths):
+    y, _, decoder_hidden, attention = decoder(S, encoder_output, decoder_input, decoder_hidden, batch_size, lengths)
     _, topi = y.topk(1)
     decoder_input = topi.detach().view(1, batch_size)
     return y, decoder_input, decoder_hidden, attention
