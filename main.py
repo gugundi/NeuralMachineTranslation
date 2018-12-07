@@ -213,9 +213,9 @@ def pad_with_window_size(batch, window_size, pad):
 
 def create_mask(batch):
     _, lengths = batch.src
-    size = length.size()
-    max_length, batch_size = size[0], size[1]
-    mask = with_gpu(torch.ones(max_length, batch_size))
+    max_length = lengths.max()
+    batch_size = lengths.size()
+    mask = with_gpu(torch.ones(max_length, batch_size[0]))
     for i, length in enumerate(lengths):
         mask[length:, i] = 0
     return mask, lengths
