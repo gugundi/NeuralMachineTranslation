@@ -93,7 +93,8 @@ def load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, source_
         tokenize=target_tokenizer,
         init_token=SOS_token,
         eos_token=EOS_token,
-        pad_token=PAD_token
+        pad_token=PAD_token,
+        include_lengths=True
     )
     data_fields = [('src', source_field), ('trg', target_field)]
     train, val = torchtext.data.TabularDataset.splits(

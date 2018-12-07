@@ -57,7 +57,8 @@ def load_iwslt(config, SOS_token, EOS_token, PAD_token, device):
         tokenize=tokenize_en,
         init_token=SOS_token,
         eos_token=EOS_token,
-        pad_token=PAD_token
+        pad_token=PAD_token,
+        include_lengths=True
     )
 
     print("Making splits for IWSLT")

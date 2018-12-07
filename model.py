@@ -77,6 +77,7 @@ class Decoder(nn.Module):
         output = torch.cat((c, output), 2)
         output = self.tanh(self.fc1(output))
         y = self.fc2(output)
+        y = y.view(batch_size, -1)
         return y, output, hidden, a
 
     def init_hidden(self, batch_size):
@@ -110,23 +111,28 @@ class Attention(nn.Module):
 
         # batch_size x 1
         p = self.tanh(self.fc1(h_t))
-        p = window_size + S * self.sigmoid(self.fc2(p))
+        p = self.window_size + S * self.sigmoid(self.fc2(p))
+        p = p.view(batch_size, 1)
 
         window_start = torch.round(p - self.window_size).int()
         window_end = torch.round(p + self.window_size).int()
-        positions = torch.empty((batch_size, window_length), device=self.device, dtype=torch.int)
+        positions = torch.empty((batch_size, window_length), device=self.device, dtype=torch.float)
         selection = torch.empty((batch_size, window_length, self.hidden_size), device=self.device, dtype=torch.float)
         for i in range(batch_size):
             start = window_start[i].item()
-            end = window_end[i].item()
-            positions[i] = torch.arange(start, end, device=self.device)
-            selection[i] = h_s[start:end, i]
-
-        # batch_size x window_length
-        gaussian = torch.exp(-(positions - p) ** 2 / (2 * self.std_squared))
+            end = window_end[i].item() + 1
+            if end - start < window_length:
+                print(f'S = {S}, p = {p}, start = {start}, end={end}, window_length = {window_length}, window_size={self.window_size}')
+                print('')
+            positions[i] = torch.arange(start, end, device=self.device, dtype=torch.float)
+            selection[i] = h_s[i, start:end]
 
         # batch_size x 1 x window_length
-        epsilon = 1e-12
+        gaussian = torch.exp(-(positions - p) ** 2 / (2 * self.std_squared))
+        gaussian = gaussian.view(batch_size, 1, window_length)
+
+        # batch_size x 1 x window_length
+        epsilon = 1e-14
         score = self.score(selection, h_t)
         for i in range(batch_size):
             start = window_start[i].item()
@@ -135,7 +141,7 @@ class Attention(nn.Module):
                 d = self.window_size - start
                 score[i, 0, :d] = epsilon
             if end > S + self.window_size:
-                d = (S + self.window_size) - start
+                d = (S + self.window_size) - end
                 score[i, 0, d:] = epsilon
 
         # batch_size x 1 x window_length
@@ -148,7 +154,37 @@ class Attention(nn.Module):
         # 1 x batch_size x hidden_size
         c = c.permute(1, 0, 2)
 
-        return c, (a, window_start, window_end)
+        # insert weights of first sentence for eventual visualiation
+        weights = torch.zeros((1, S), device=self.device, dtype=torch.float)
+        start = window_start[0].item()
+        end = window_end[0].item()
+        if start < self.window_size and end > self.window_size + S - 1:
+            # overflow in both ends
+            weights_start = 0
+            weights_end = S
+            a_start = self.window_size - start
+            a_end = a_start + S
+        elif start < self.window_size:
+            # overflow in left side only
+            weights_start = 0
+            weights_end = end - self.window_size + 1
+            a_start = self.window_size - start
+            a_end = window_length
+        elif end > self.window_size + S - 1:
+            # overflow in right side only
+            weights_start = start - self.window_size
+            weights_end = S
+            a_start = 0
+            a_end = a_start + (weights_end - weights_start)
+        else:
+            # a is contained in sentence
+            weights_start = start - self.window_size
+            weights_end = end - self.window_size + 1
+            a_start = 0
+            a_end = window_length
+        weights[0, weights_start:weights_end] = a[0, 0, a_start:a_end]
+
+        return c, weights
 
     def score(self, h_s, h_t):
         # h_s : batch x length x hidden
