@@ -1,3 +1,4 @@
+from bleu import compute_bleu
 from device import with_cpu
 import itertools
 import os
@@ -131,8 +132,12 @@ def torch2words(language, sentence):
     return list(sentence)
 
 
+def filter_words(words, SOS_token, EOS_token, PAD_token):
+    return filter(lambda word: word != SOS_token and word != EOS_token and word != PAD_token, words)
+
+
 def words2text(words, SOS_token, EOS_token, PAD_token):
-    sentence = filter(lambda word: word != SOS_token and word != EOS_token and word != PAD_token, words)
+    sentence = filter_words(words, SOS_token, EOS_token, PAD_token)
     sentence = " ".join(sentence)
     return sentence
 
@@ -146,3 +151,13 @@ def get_text(source_words, target_words, translation_words, SOS_token, EOS_token
     Target: \"{target}\"
     Translation: \"{translation}\"
     """
+
+
+def get_bleu(source_language, target_language, batch, batch_size, translations, PAD_token):
+    reference_corpus = map(lambda i: torch2words(target_language, batch[:, i]), range(batch_size))
+    reference_corpus = map(lambda words: [list(filter(lambda word: word != PAD_token, words))], reference_corpus)
+    reference_corpus = list(reference_corpus)
+    translation_corpus = map(lambda i: list2words(target_language, translations[i]), range(batch_size))
+    translation_corpus = map(lambda words: list(filter(lambda word: word != PAD_token, words)), translation_corpus)
+    translation_corpus = list(translation_corpus)
+    return compute_bleu(reference_corpus, translation_corpus)

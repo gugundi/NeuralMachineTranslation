@@ -6,13 +6,13 @@ import torchtext
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
-from utils import get_or_create_dir, get_text, list2words, torch2words
+from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
 # TODO: teacher forcing?
 # TODO: look in to using torch pad function instead of pad_with_window_size
-# TODO: add bleu score to tensorboard
+# TODO: save and load weights
 
 
 def main():
@@ -68,16 +68,18 @@ def train(config, sample_validation_batches):
             should_sample = (i + 1) % sample_every == 0
             if should_evaluate or should_sample:
                 val_batch = sample_validation_batches(batch_size)
-                val_loss, translation, attention_weights = evaluate_batch(config, val_batch)
+                val_batch_trg, _ = val_batch.trg
+                val_loss, translations, attention_weights = evaluate_batch(config, val_batch)
                 if should_evaluate:
+                    bleu = get_bleu(source_language, target_language, val_batch_trg, batch_size, translations, PAD_token)
+                    writer_val.add_scalar('bleu', bleu, step)
                     writer_val.add_scalar('loss', val_loss, step)
                 if should_sample:
                     val_batch_src, val_lengths_src = val_batch.src
-                    val_batch_trg, _ = val_batch.trg
                     s0 = val_lengths_src[0].item()
                     source_words = torch2words(source_language, val_batch_src[:, 0])
                     target_words = torch2words(target_language, val_batch_trg[:, 0])
-                    translation_words = list2words(target_language, translation)
+                    translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
                     attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
                     text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
                     writer_val.add_figure('attention', attention_figure, step)
@@ -146,25 +148,25 @@ def evaluate_batch(config, batch):
         hidden = encoder_hidden
 
         first_sentence_has_reached_end = False
-        decoded_words = []
+        translations = [[] for _ in range(batch_size)]
         attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
             y, input, context, hidden, attention = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
 
-            decoded_word = input[0, 0].item()
+            for j in range(batch_size):
+                translations[j].append(input[0, j].item())
 
             # don't add padding to attention visualiation
+            decoded_word = translations[0][i]
             if not first_sentence_has_reached_end and decoded_word != PAD_trg:
                 # add attention weights of first sentence in batch
                 attention_weights = torch.cat((attention_weights, attention))
-                # add decoded word of first sentence in batch
-                decoded_words.append(decoded_word)
                 first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
-        return with_cpu(loss), decoded_words, with_cpu(attention_weights)
+        return with_cpu(loss), translations, with_cpu(attention_weights)
 
 
 def encode(encoder, batch, window_size, PAD):
