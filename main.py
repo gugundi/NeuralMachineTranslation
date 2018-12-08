@@ -11,7 +11,6 @@ from visualize import visualize_attention
 
 
 # TODO: teacher forcing?
-# TODO: perhaps add input-feedinig again
 # TODO: reverse source sentence for better results
 # TODO: look in to using torch pad function instead of pad_with_window_size
 
@@ -102,14 +101,14 @@ def train_batch(config, batch):
     target_batch, _ = batch.trg
     _, batch_size = target_batch.size()
     mask, target_lengths = create_mask(batch.trg)
-    encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
+    encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD)
 
     input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
     hidden = encoder_hidden
 
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
-        y, input, hidden, _ = decode_word(decoder, encoder_output, input, hidden, S, batch_size, source_lengths)
+        y, input, context, hidden, _ = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
         compute_word_loss(losses, i, y, target_batch, loss_fn)
     loss = compute_batch_loss(losses, mask, target_lengths)
 
@@ -140,7 +139,7 @@ def evaluate_batch(config, batch):
         target_batch, _ = batch.trg
         batch_size = target_batch.size()[1]
         mask, target_lengths = create_mask(batch.trg)
-        encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
+        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD)
 
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
         hidden = encoder_hidden
@@ -150,7 +149,7 @@ def evaluate_batch(config, batch):
         attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
-            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, S, batch_size, source_lengths)
+            y, input, context, hidden, attention = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
             decoded_word = input
 
@@ -175,14 +174,15 @@ def encode(encoder, batch, window_size, PAD):
     T = target_batch.size(0)
     input = pad_with_window_size(source_batch, window_size, PAD)
     output, hidden = encoder(input, hidden)
-    return output, hidden, S, T
+    context = output[window_size].unsqueeze(0)
+    return output, hidden, context, S, T
 
 
-def decode_word(decoder, encoder_output, decoder_input, decoder_hidden, S, batch_size, lengths):
-    y, _, decoder_hidden, attention = decoder(S, encoder_output, decoder_input, decoder_hidden, batch_size, lengths)
+def decode_word(decoder, encoder_output, input, context, hidden, batch_size, lengths):
+    y, context, hidden, attention = decoder(encoder_output, input, context, hidden, batch_size, lengths)
     _, topi = y.topk(1)
-    decoder_input = topi.detach().view(1, batch_size)
-    return y, decoder_input, decoder_hidden, attention
+    input = topi.detach().view(1, batch_size)
+    return y, input, context, hidden, attention
 
 
 def pad_with_window_size(batch, window_size, pad):

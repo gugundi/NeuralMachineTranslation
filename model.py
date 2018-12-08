@@ -24,10 +24,12 @@ class Encoder(nn.Module):
             num_layers=self.num_layers,
             dropout=dropout,
         )
+        self.relu = nn.ReLU()
 
     def forward(self, source_sentence, hidden):
         embedded = self.embedding(source_sentence)
         output, hidden = self.lstm(embedded, hidden)
+        output = self.relu(output)
         return output, hidden
 
     def init_hidden(self, batch_size):
@@ -55,7 +57,7 @@ class Decoder(nn.Module):
             embedding_dim=self.hidden_size,
         )
         self.lstm = nn.LSTM(
-            input_size=self.hidden_size,
+            input_size=2 * self.hidden_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
@@ -70,10 +72,11 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, source_sentence_length, encoder_output, word, hidden, batch_size, lengths):
+    def forward(self, encoder_output, word, context, hidden, batch_size, lengths):
         embedded = self.embedding(word)
-        output, hidden = self.lstm(embedded, hidden)
-        c, a = self.attention(source_sentence_length, encoder_output, output, batch_size, lengths)
+        input = torch.cat((embedded, context), 2)
+        output, hidden = self.lstm(input, hidden)
+        c, a = self.attention(encoder_output, output, batch_size, lengths)
         output = torch.cat((c, output), 2)
         output = self.relu(self.fc1(output))
         y = self.fc2(output)
@@ -100,7 +103,7 @@ class Attention(nn.Module):
         self.fc1 = nn.Linear(in_features=hidden_size, out_features=math.ceil(hidden_size / 2))
         self.fc2 = nn.Linear(in_features=math.ceil(hidden_size / 2), out_features=1)
 
-    def forward(self, S, encoder_output, decoder_output, batch_size, lengths):
+    def forward(self, encoder_output, decoder_output, batch_size, lengths):
         s0 = lengths[0].item()
         lengths = lengths.view(batch_size, 1)
         window_length = 2 * self.window_size + 1
