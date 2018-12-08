@@ -92,7 +92,7 @@ def train_batch(config, batch):
     encoder_optimizer, decoder_optimizer = config.get('encoder_optimizer'), config.get('decoder_optimizer')
     PAD = config.get('PAD')
     SOS = config.get('SOS')
-    window_size = config.get('attention').get('window_size')
+    window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
 
     encoder.train()
