@@ -11,8 +11,8 @@ from visualize import visualize_attention
 
 
 # TODO: teacher forcing?
-# TODO: reverse source sentence for better results
 # TODO: look in to using torch pad function instead of pad_with_window_size
+# TODO: add bleu score to tensorboard
 
 
 def main():
@@ -89,7 +89,7 @@ def train(config, sample_validation_batches):
 def train_batch(config, batch):
     encoder, decoder = config.get('encoder'), config.get('decoder')
     encoder_optimizer, decoder_optimizer = config.get('encoder_optimizer'), config.get('decoder_optimizer')
-    PAD = config.get('PAD')
+    PAD = config.get('PAD_src')
     SOS = config.get('SOS')
     window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
@@ -98,9 +98,9 @@ def train_batch(config, batch):
     decoder.train()
 
     _, source_lengths = batch.src
-    target_batch, _ = batch.trg
+    target_batch, target_lengths = batch.trg
     _, batch_size = target_batch.size()
-    mask, target_lengths = create_mask(batch.trg)
+    mask = create_mask(batch.trg)
     encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD)
 
     input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
@@ -126,7 +126,8 @@ def train_batch(config, batch):
 def evaluate_batch(config, batch):
     encoder, decoder = config.get('encoder'), config.get('decoder')
     EOS = config.get('EOS')
-    PAD = config.get('PAD')
+    PAD_src = config.get('PAD_src')
+    PAD_trg = config.get('PAD_trg')
     SOS = config.get('SOS')
     window_size = config.get('attention').get('window_size')
     loss_fn = config.get('loss_fn')
@@ -136,30 +137,31 @@ def evaluate_batch(config, batch):
         decoder.eval()
 
         _, source_lengths = batch.src
-        target_batch, _ = batch.trg
+        target_batch, target_lengths = batch.trg
         batch_size = target_batch.size()[1]
-        mask, target_lengths = create_mask(batch.trg)
-        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD)
+        mask = create_mask(batch.trg)
+        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD_src)
 
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
         hidden = encoder_hidden
 
-        first_sentence_has_reached_eos = False
+        first_sentence_has_reached_end = False
         decoded_words = []
         attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
             y, input, context, hidden, attention = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
-            decoded_word = input
 
-            if not first_sentence_has_reached_eos:
+            decoded_word = input[0, 0].item()
+
+            # don't add padding to attention visualiation
+            if not first_sentence_has_reached_end and decoded_word != PAD_trg:
                 # add attention weights of first sentence in batch
                 attention_weights = torch.cat((attention_weights, attention))
                 # add decoded word of first sentence in batch
-                decoded_word_of_first_sentence = decoded_word[0, 0].item()
-                decoded_words.append(decoded_word_of_first_sentence)
-                first_sentence_has_reached_eos = decoded_word_of_first_sentence == EOS
+                decoded_words.append(decoded_word)
+                first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
         return with_cpu(loss), decoded_words, with_cpu(attention_weights)
@@ -213,7 +215,7 @@ def create_mask(batch_tuple):
     mask = with_gpu(torch.ones(max_length, batch_size))
     for i, length in enumerate(lengths):
         mask[length:, i] = 0
-    return mask, lengths
+    return mask
 
 
 def compute_word_loss(losses, ith_word, y, target_batch, loss_fn):

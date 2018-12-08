@@ -39,7 +39,8 @@ def get_config(use_gpu, device, device_idx):
     config['EOS_token'] = EOS_token
     config['EOS'] = trg_language.stoi[EOS_token]
     config['PAD_token'] = PAD_token
-    config['PAD'] = src_language.stoi[PAD_token]
+    config['PAD_src'] = src_language.stoi[PAD_token]
+    config['PAD_trg'] = trg_language.stoi[PAD_token]
     config['SOS_token'] = SOS_token
     config['SOS'] = trg_language.stoi[SOS_token]
     config['source_vocabulary_size'] = len(src_language.itos)
