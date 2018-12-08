@@ -75,6 +75,10 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4, smooth=False
     else:
         geo_mean = 0
 
+    # bleu score of 0 if translations only contain the empty string
+    if translation_length == 0:
+        return 0.
+
     ratio = float(translation_length) / reference_length
 
     if ratio > 1.0:

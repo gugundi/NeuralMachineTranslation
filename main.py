@@ -80,9 +80,10 @@ def train(config, sample_validation_batches):
                     source_words = torch2words(source_language, val_batch_src[:, 0])
                     target_words = torch2words(target_language, val_batch_trg[:, 0])
                     translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
-                    attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
+                    if sum(attention_weights.shape) != 0:
+                        attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
+                        writer_val.add_figure('attention', attention_figure, step)
                     text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
-                    writer_val.add_figure('attention', attention_figure, step)
                     writer_val.add_text('translation', text, step)
 
             step += 1
