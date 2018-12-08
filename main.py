@@ -5,11 +5,11 @@ from tensorboardX import SummaryWriter
 import torchtext
 import torch
 import torch.nn as nn
+from torch.nn.utils import clip_grad_norm_
 from utils import get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
-# TODO: find out why loss function explodes
 # TODO: teacher forcing?
 # TODO: perhaps add input-feedinig again
 # TODO: reverse source sentence for better results
@@ -116,6 +116,8 @@ def train_batch(config, batch):
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
     loss.backward()
+    clip_grad_norm_(encoder.parameters(), 1)
+    clip_grad_norm_(decoder.parameters(), 1)
     encoder_optimizer.step()
     decoder_optimizer.step()
 
@@ -216,7 +218,7 @@ def create_mask(batch_tuple):
 
 def compute_word_loss(losses, ith_word, y, target_batch, loss_fn):
     target = target_batch[ith_word]
-    losses[ith_word] += loss_fn(y, target)
+    losses[ith_word] = loss_fn(y, target)
 
 
 def compute_batch_loss(loss, mask, lengths):

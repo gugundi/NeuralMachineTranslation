@@ -60,7 +60,7 @@ class Decoder(nn.Module):
             num_layers=self.num_layers,
             dropout=dropout,
         )
-        self.tanh = nn.Tanh()
+        self.relu = nn.ReLU()
         self.fc1 = nn.Linear(
             in_features=2 * self.hidden_size,
             out_features=self.hidden_size,
@@ -75,7 +75,7 @@ class Decoder(nn.Module):
         output, hidden = self.lstm(embedded, hidden)
         c, a = self.attention(source_sentence_length, encoder_output, output, batch_size, lengths)
         output = torch.cat((c, output), 2)
-        output = self.tanh(self.fc1(output))
+        output = self.relu(self.fc1(output))
         y = self.fc2(output)
         y = y.view(batch_size, -1)
         return y, output, hidden, a
