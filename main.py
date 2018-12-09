@@ -10,8 +10,6 @@ from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
-# TODO: teacher forcing?
-# TODO: look in to using torch pad function instead of pad_with_window_size
 # TODO: save and load weights
 
 
@@ -96,6 +94,7 @@ def train_batch(config, batch):
     SOS = config.get('SOS')
     window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
+    teacher_forcing = config.get('teacher_forcing')
 
     encoder.train()
     decoder.train()
@@ -111,6 +110,8 @@ def train_batch(config, batch):
 
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
+        if teacher_forcing and i != 0:
+            input = target_batch[i-1].unsqueeze(0)
         y, input, context, hidden, _ = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
         compute_word_loss(losses, i, y, target_batch, loss_fn)
     loss = compute_batch_loss(losses, mask, target_lengths)
