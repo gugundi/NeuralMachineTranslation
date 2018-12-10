@@ -1,5 +1,5 @@
 import argparse
-from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable_length, load_iwslt
+from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable_length, load_multi30k
 import json
 from model import Encoder, Decoder
 import os
@@ -30,7 +30,7 @@ def get_config(use_gpu, device, device_idx):
         )
     else:
         train_iter, val_iter, src_language, trg_language, _, val_dataset = (
-            load_iwslt(config, SOS_token, EOS_token, PAD_token, device)
+            load_multi30k(config, SOS_token, EOS_token, PAD_token, device)
         )
     if args.name is not None:
         config['name'] = args.name

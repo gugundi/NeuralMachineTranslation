@@ -85,6 +85,7 @@ def load_iwslt(config, SOS_token, EOS_token, PAD_token, device):
 
     return train_iter_iwslt, val_iter_iwslt, DE_IWSLT.vocab, EN_IWSLT.vocab, train_iwslt, val_iwslt
 
+
 def load_multi30k(config, SOS_token, EOS_token, PAD_token, device):
     print("Started data-loader: Multi30K (de-en)")
 
@@ -106,14 +107,14 @@ def load_multi30k(config, SOS_token, EOS_token, PAD_token, device):
 
     print("Making splits for Multi30K")
     # make splits for data in IWSLT
-    train_multi30k, val_multi30k, test_multi30k = torchtext.datasets.IWSLT.splits(exts=('.de', '.en'), fields=(DE_MULTI30K, EN_MULTI30K))
+    train_multi30k, val_multi30k, test_multi30k = torchtext.datasets.Multi30k.splits(exts=('.de', '.en'), fields=(DE_MULTI30K, EN_MULTI30K))
 
     print("Building vocabulary for Multi30K")
     # build the vocabulary of IWSLT
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
-    DE_MULTI30K.build_vocab(train_iwslt.src, max_size=source_vocabulary_size)
-    EN_MULTI30K.build_vocab(train_iwslt.trg, max_size=target_vocabulary_size)
+    DE_MULTI30K.build_vocab(train_multi30k.src, max_size=source_vocabulary_size)
+    EN_MULTI30K.build_vocab(train_multi30k.trg, max_size=target_vocabulary_size)
 
     print("Making iterator splits for Multi30K")
     # make iterator for splits in IWSLT
