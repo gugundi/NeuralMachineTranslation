@@ -28,7 +28,7 @@ def main():
 
 def run(use_gpu, device, device_idx):
     config = get_config(use_gpu, device, device_idx)
-    val_iter = config.get('val_iter')'
+    val_iter = config.get('val_iter')
     val_data = val_iter.data()
     val_dataset = config.get('val_dataset')
 
