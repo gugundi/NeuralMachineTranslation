@@ -104,16 +104,12 @@ def train_batch(config, batch):
     target_batch, target_lengths = batch.trg
     _, batch_size = target_batch.size()
     mask = create_mask(batch.trg)
-    encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD)
-
-    input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
+    encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
     hidden = encoder_hidden
 
-    losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
-    for i in range(T):
-        y, input, context, hidden, _ = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
-        compute_word_loss(losses, i, y, target_batch, loss_fn)
-    loss = compute_batch_loss(losses, mask, target_lengths)
+    y, _, _, _ = decoder(encoder_output, target_batch, hidden, source_lengths)
+    loss = loss_fn(y, target_batch)
+    loss = compute_batch_loss(loss, mask, target_lengths)
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -143,7 +139,7 @@ def evaluate_batch(config, batch):
         target_batch, target_lengths = batch.trg
         batch_size = target_batch.size()[1]
         mask = create_mask(batch.trg)
-        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, PAD_src)
+        encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD_src)
 
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
         hidden = encoder_hidden
@@ -153,7 +149,7 @@ def evaluate_batch(config, batch):
         attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
-            y, input, context, hidden, attention = decode_word(decoder, encoder_output, input, context, hidden, batch_size, source_lengths)
+            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
 
             for j in range(batch_size):
@@ -179,15 +175,14 @@ def encode(encoder, batch, window_size, PAD):
     T = target_batch.size(0)
     input = pad_with_window_size(source_batch, window_size, PAD)
     output, hidden = encoder(input, hidden)
-    context = output[window_size].unsqueeze(0)
-    return output, hidden, context, S, T
+    return output, hidden, S, T
 
 
 def decode_word(decoder, encoder_output, input, context, hidden, batch_size, lengths):
-    y, context, hidden, attention = decoder(encoder_output, input, context, hidden, batch_size, lengths)
+    y, _, hidden, attention = decoder(encoder_output, input, hidden, lengths)
     _, topi = y.topk(1)
     input = topi.detach().view(1, batch_size)
-    return y, input, context, hidden, attention
+    return y, input, hidden, attention
 
 
 def pad_with_window_size(batch, window_size, pad):
