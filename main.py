@@ -6,6 +6,7 @@ from tensorboardX import SummaryWriter
 import torchtext
 import torch
 import torch.nn as nn
+import torch.save as save
 from torch.nn.utils import clip_grad_norm_
 from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
@@ -246,19 +247,13 @@ def compute_batch_loss(loss, mask, lengths):
     return loss
 
 def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
-    enc_hidden = encoder_hidden.numpy()
-    dec_hidden = decoder_hidden.numpy()
-    att_weights = attention_weights.numpy()
+    save(encoder_hidden, f'{weights_dir}/encoder.pt')
+    save(decoder_hidden, f'{weights_dir}/decoder.pt')
+    save(attention_weights, f'{weights_dir}/attention.pt')
 
-    config_name = config.get('name')
-    with open(f'{weights_dir}/weights.npz', 'w') as file_weights:
-        # Load data with np.load('.weights/{config.get("name")}/weights.npz')
-        savez(file_weights, enc_hidden, dec_hidden, att_weights)
     with open(f'{weights_dir}/params.txt', 'w') as file_params:
         # Load data with np.load('.weights/{config.get("name")}/params.txt')
         file_params.write('{source_language}\n{target_language}')
-
-
 
 if __name__ == '__main__':
     main()
