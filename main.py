@@ -179,7 +179,7 @@ def evaluate_batch(config, batch):
                 first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
-        return with_cpu(loss), translations, with_cpu(attention_weights), with_cpu(encoder_hidden), with_cpu(hidden)
+        return with_cpu(loss), translations, attention_weights, encoder_hidden, hidden
 
 
 def encode(encoder, batch, window_size, PAD):
