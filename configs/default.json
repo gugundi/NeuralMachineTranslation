@@ -18,7 +18,7 @@
   },
   "source_vocabulary_size": 10000,
   "target_vocabulary_size": 10000,
-  "teacher_forcing": true,
+  "teacher_forcing": 0,
   "training": {
     "eval_every": 100,
     "sample_every": 200

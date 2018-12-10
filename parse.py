@@ -59,7 +59,7 @@ def get_config(use_gpu, device, device_idx):
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
     config['window_size'] = config.get('attention').get('window_size')
     config['loss_fn'] = nn.CrossEntropyLoss()
-    config['teacher_forcing'] = config.get('teacher_forcing', False)
+    config['teacher_forcing'] = config.get('teacher_forcing', 0)
     return config
 
 
