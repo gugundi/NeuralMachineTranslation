@@ -6,6 +6,7 @@ from tensorboardX import SummaryWriter
 import torchtext
 import torch
 import torch.nn as nn
+# import torch.save as save
 from torch.nn.utils import clip_grad_norm_
 from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
@@ -56,17 +57,17 @@ def train(config, sample_validation_batches):
     eval_every = training.get('eval_every')
     sample_every = training.get('sample_every')
     weights_dir = get_or_create_dir('.weights', config.get("name"))
+    write_to_weights = True
     step = 1
     for epoch in range(epochs):
         print(f'Epoch: {epoch+1}/{epochs}')
-        write_to_weights = True
         for i, training_batch in enumerate(train_iter):
             loss = train_batch(config, training_batch)
 
             writer_train.add_scalar('loss', loss, step)
 
-            should_evaluate = (i + 1) % eval_every == 0
-            should_sample = (i + 1) % sample_every == 0
+            should_evaluate = step % eval_every == 0
+            should_sample = step % sample_every == 0
             if should_evaluate or should_sample:
                 val_batch = sample_validation_batches(batch_size)
                 val_batch_trg, _ = val_batch.trg
@@ -232,6 +233,17 @@ def compute_batch_loss(loss, mask, lengths):
     loss = loss / lengths.float()
     loss = loss.mean()
     return loss
+
+
+def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
+    # save(encoder_hidden, f'{weights_dir}/encoder.pt')
+    # save(decoder_hidden, f'{weights_dir}/decoder.pt')
+    # save(attention_weights, f'{weights_dir}/attention.pt')
+
+    # with open(f'{weights_dir}/params.txt', 'w') as file_params:
+    #     # Load data with np.load('.weights/{config.get("name")}/params.txt')
+    #     file_params.write('{source_language}\n{target_language}')
+    pass
 
 
 if __name__ == '__main__':
