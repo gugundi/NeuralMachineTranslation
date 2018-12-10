@@ -1,4 +1,5 @@
 from device import select_device, with_cpu, with_gpu
+from numpy import savez
 from parse import get_config
 from random import sample
 from tensorboardX import SummaryWriter
@@ -10,8 +11,6 @@ from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
-# TODO: teacher forcing?
-# TODO: look in to using torch pad function instead of pad_with_window_size
 # TODO: save and load weights
 
 
@@ -56,9 +55,11 @@ def train(config, sample_validation_batches):
     training = config.get('training')
     eval_every = training.get('eval_every')
     sample_every = training.get('sample_every')
+    weights_dir = get_or_create_dir('.weights', config.get("name"))
     step = 1
     for epoch in range(epochs):
         print(f'Epoch: {epoch+1}/{epochs}')
+        write_to_weights = True
         for i, training_batch in enumerate(train_iter):
             loss = train_batch(config, training_batch)
 
@@ -69,7 +70,12 @@ def train(config, sample_validation_batches):
             if should_evaluate or should_sample:
                 val_batch = sample_validation_batches(batch_size)
                 val_batch_trg, _ = val_batch.trg
-                val_loss, translations, attention_weights = evaluate_batch(config, val_batch)
+                if write_to_weights:
+                    val_loss, translations, attention_weights, encoder_hidden, decoder_hidden = evaluate_batch(config, val_batch)
+                    writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights)
+                    write_to_weights = False
+                else:
+                    val_loss, translations, attention_weights, _, _ = evaluate_batch(config, val_batch)
                 if should_evaluate:
                     bleu = get_bleu(source_language, target_language, val_batch_trg, batch_size, translations, PAD_token)
                     writer_val.add_scalar('bleu', bleu, step)
@@ -89,6 +95,7 @@ def train(config, sample_validation_batches):
             step += 1
 
 
+
 def train_batch(config, batch):
     encoder, decoder = config.get('encoder'), config.get('decoder')
     encoder_optimizer, decoder_optimizer = config.get('encoder_optimizer'), config.get('decoder_optimizer')
@@ -96,6 +103,7 @@ def train_batch(config, batch):
     SOS = config.get('SOS')
     window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
+    teacher_forcing = config.get('teacher_forcing')
 
     encoder.train()
     decoder.train()
@@ -163,7 +171,7 @@ def evaluate_batch(config, batch):
                 first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
-        return with_cpu(loss), translations, with_cpu(attention_weights)
+        return with_cpu(loss), translations, attention_weights, encoder_hidden, hidden
 
 
 def encode(encoder, batch, window_size, PAD):
@@ -227,6 +235,20 @@ def compute_batch_loss(loss, mask, lengths):
     loss = loss / lengths.float()
     loss = loss.mean()
     return loss
+
+def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
+    enc_hidden = encoder_hidden.numpy()
+    dec_hidden = decoder_hidden.numpy()
+    att_weights = attention_weights.numpy()
+
+    config_name = config.get('name')
+    with open(f'{weights_dir}/weights.npz', 'w') as file_weights:
+        # Load data with np.load('.weights/{config.get("name")}/weights.npz')
+        savez(file_weights, enc_hidden, dec_hidden, att_weights)
+    with open(f'{weights_dir}/params.txt', 'w') as file_params:
+        # Load data with np.load('.weights/{config.get("name")}/params.txt')
+        file_params.write('{source_language}\n{target_language}')
+
 
 
 if __name__ == '__main__':
