@@ -65,16 +65,15 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, encoder_output, words, hidden, lengths):
-        T, batch_size = words.shape
-        embedded = self.embedding(words)
+    def forward(self, encoder_output, target_words, hidden, lengths):
+        T, batch_size = target_words.shape
+        embedded = self.embedding(target_words)
         output, hidden = self.lstm(embedded, hidden)
         c, a = self.attention(encoder_output, output, lengths, T, batch_size)
         output = torch.cat((c, output), 2)
         output = self.relu(self.fc1(output))
         y = self.fc2(output)
-        y = y.view(batch_size, -1)
-        return y, output, hidden, a
+        return y, hidden, a
 
 
 class Attention(nn.Module):
@@ -102,26 +101,27 @@ class Attention(nn.Module):
         h_t = decoder_output
         h_t = h_t.permute(1, 0, 2)
 
-        # batch_size x T
+        # batch_size x T x 1
         p = self.tanh(self.fc1(h_t))
         p = self.sigmoid(self.fc2(p))
-        p = p.view(batch_size, -1)
+        p = p.view(batch_size, T)
         p = self.window_size + lengths.float() * p
+        p = p.unsqueeze(2)
 
         window_start = torch.round(p - self.window_size).int()
         window_end = window_start + window_length
         positions = torch.empty((batch_size, T, window_length), device=self.device, dtype=torch.float)
-        selection = torch.empty((batch_size, T, window_length, self.hidden_size), device=self.device, dtype=torch.float)
+        selection = torch.empty((batch_size, window_length, self.hidden_size), device=self.device, dtype=torch.float)
         for i in range(batch_size):
             for j in range(T):
                 start = window_start[i, j].item()
                 end = window_end[i, j].item()
                 positions[i, j] = torch.arange(start, end, device=self.device, dtype=torch.float)
-                selection[i, j] = h_s[i, start:end]
+                selection[i] = h_s[i, start:end]
 
         # batch_size x T x window_length
         gaussian = torch.exp(-(positions - p) ** 2 / (2 * self.std_squared))
-        gaussian = gaussian.view(batch_size, 1, window_length)
+        gaussian = gaussian.view(batch_size, T, window_length)
 
         # batch_size x T x window_length
         epsilon = 1e-14

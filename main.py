@@ -70,12 +70,7 @@ def train(config, sample_validation_batches):
             if should_evaluate or should_sample:
                 val_batch = sample_validation_batches(batch_size)
                 val_batch_trg, _ = val_batch.trg
-                if write_to_weights:
-                    val_loss, translations, attention_weights, encoder_hidden, decoder_hidden = evaluate_batch(config, val_batch)
-                    writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights)
-                    write_to_weights = False
-                else:
-                    val_loss, translations, attention_weights, _, _ = evaluate_batch(config, val_batch)
+                val_loss, translations, attention_weights, _, _ = evaluate_batch(config, val_batch)
                 if should_evaluate:
                     bleu = get_bleu(source_language, target_language, val_batch_trg, batch_size, translations, PAD_token)
                     writer_val.add_scalar('bleu', bleu, step)
@@ -93,7 +88,6 @@ def train(config, sample_validation_batches):
                     writer_val.add_text('translation', text, step)
 
             step += 1
-
 
 
 def train_batch(config, batch):
@@ -115,9 +109,12 @@ def train_batch(config, batch):
     encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
     hidden = encoder_hidden
 
-    y, _, _, _ = decoder(encoder_output, target_batch, hidden, source_lengths)
-    loss = loss_fn(y, target_batch)
-    loss = compute_batch_loss(loss, mask, target_lengths)
+    input = target_batch[0].unsqueeze(0)
+    losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
+    for i in range(T):
+        y, input, hidden, _ = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
+        losses[i] = loss_fn(y, target_batch[i])
+    loss = compute_batch_loss(losses, mask, target_lengths)
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -157,7 +154,7 @@ def evaluate_batch(config, batch):
         attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
         for i in range(T):
-            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths)
+            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
 
             for j in range(batch_size):
@@ -171,25 +168,25 @@ def evaluate_batch(config, batch):
                 first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
-        return with_cpu(loss), translations, attention_weights, encoder_hidden, hidden
+        return with_cpu(loss), translations, with_cpu(attention_weights), encoder_hidden, hidden
 
 
 def encode(encoder, batch, window_size, PAD):
     source_batch, _ = batch.src
     target_batch, _ = batch.trg
     batch_size = source_batch.shape[1]
-    hidden = encoder.init_hidden(batch_size)
     S = source_batch.size(0)
     T = target_batch.size(0)
     input = pad_with_window_size(source_batch, window_size, PAD)
-    output, hidden = encoder(input, hidden)
+    output, hidden = encoder(input)
     return output, hidden, S, T
 
 
-def decode_word(decoder, encoder_output, input, context, hidden, batch_size, lengths):
-    y, _, hidden, attention = decoder(encoder_output, input, hidden, lengths)
+def decode_word(decoder, encoder_output, input, hidden, lengths, batch_size):
+    y, hidden, attention = decoder(encoder_output, input, hidden, lengths)
     _, topi = y.topk(1)
     input = topi.detach().view(1, batch_size)
+    y = y.view(batch_size, -1)
     return y, input, hidden, attention
 
 
@@ -235,20 +232,6 @@ def compute_batch_loss(loss, mask, lengths):
     loss = loss / lengths.float()
     loss = loss.mean()
     return loss
-
-def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
-    enc_hidden = encoder_hidden.numpy()
-    dec_hidden = decoder_hidden.numpy()
-    att_weights = attention_weights.numpy()
-
-    config_name = config.get('name')
-    with open(f'{weights_dir}/weights.npz', 'w') as file_weights:
-        # Load data with np.load('.weights/{config.get("name")}/weights.npz')
-        savez(file_weights, enc_hidden, dec_hidden, att_weights)
-    with open(f'{weights_dir}/params.txt', 'w') as file_params:
-        # Load data with np.load('.weights/{config.get("name")}/params.txt')
-        file_params.write('{source_language}\n{target_language}')
-
 
 
 if __name__ == '__main__':
