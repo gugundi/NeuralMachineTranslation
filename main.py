@@ -28,8 +28,7 @@ def main():
 
 def run(use_gpu, device, device_idx):
     config = get_config(use_gpu, device, device_idx)
-    get_or_create_dir(file_path, f'.weights/{config.get("name")}')
-    val_iter = config.get('val_iter')
+    val_iter = config.get('val_iter')'
     val_data = val_iter.data()
     val_dataset = config.get('val_dataset')
 
@@ -56,6 +55,7 @@ def train(config, sample_validation_batches):
     training = config.get('training')
     eval_every = training.get('eval_every')
     sample_every = training.get('sample_every')
+    weights_dir = get_or_create_dir('.weights', config.get("name"))
     step = 1
     for epoch in range(epochs):
         print(f'Epoch: {epoch+1}/{epochs}')
@@ -72,7 +72,7 @@ def train(config, sample_validation_batches):
                 val_batch_trg, _ = val_batch.trg
                 if write_to_weights:
                     val_loss, translations, attention_weights, encoder_hidden, decoder_hidden = evaluate_batch(config, val_batch)
-                    writeToWeights(config, encoder_hidden, decoder_hidden, attention_weights)
+                    writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights)
                     write_to_weights = False
                 else:
                     val_loss, translations, attention_weights, _, _ = evaluate_batch(config, val_batch)
@@ -245,17 +245,17 @@ def compute_batch_loss(loss, mask, lengths):
     loss = loss.mean()
     return loss
 
-def writeToWeights(config, encoder_hidden, decoder_hidden, attention_weights):
+def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
     enc_hidden = encoder_hidden.numpy()
     dec_hidden = decoder_hidden.numpy()
     att_weights = attention_weights.numpy()
 
     config_name = config.get('name')
-    with open(f'.weights/{config.get("name")}', 'w+') as file_weights:
-        # Load data with np.load('.weights/{config.get("name")}')
+    with open(f'{weights_dir}/weights.npz', 'w') as file_weights:
+        # Load data with np.load('.weights/{config.get("name")}/weights.npz')
         savez(file_weights, enc_hidden, dec_hidden, att_weights)
-    with open(f'.weights/{config.get("name")}_params', 'w+') as file_params:
-        # Load data with np.load('.weights/{config.get("name")}_params')
+    with open(f'{weights_dir}/params.txt', 'w') as file_params:
+        # Load data with np.load('.weights/{config.get("name")}/params.txt')
         file_params.write('{source_language}\n{target_language}')
 
 
