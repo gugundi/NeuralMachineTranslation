@@ -1,0 +1,26 @@
+{
+  "attention": {
+    "window_size": 3
+  },
+  "batch_size": 32,
+  "epochs": 16,
+  "name": "c4",
+  "optimizer": {
+    "momentum": 0.9,
+    "learning_rate": 0.3,
+    "type": "SGD",
+    "weight_decay": 0
+  },
+  "rnn": {
+    "dropout": 0,
+    "hidden_size": 1024,
+    "num_layers": 4
+  },
+  "source_vocabulary_size": 10000,
+  "target_vocabulary_size": 10000,
+  "teacher_forcing": true,
+  "training": {
+    "eval_every": 100,
+    "sample_every": 100
+  }
+}
