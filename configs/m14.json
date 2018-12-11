@@ -6,9 +6,9 @@
   "epochs": 100,
   "name": "m14",
   "optimizer": {
-    "learning_rate": 0.003,
+    "learning_rate": 0.005,
     "type": "Adam",
-    "weight_decay": 0.25
+    "weight_decay": 0.05
   },
   "rnn": {
     "dropout": 0,
