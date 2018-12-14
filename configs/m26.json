@@ -7,7 +7,7 @@
   "gradient_clipping": false,
   "name": "m26",
   "optimizer": {
-    "learning_rate": 0.003,
+    "learning_rate": 0.0025,
     "type": "Adam",
     "weight_decay": 0
   },
