@@ -1,4 +1,3 @@
-from bleu import compute_bleu
 from device import with_cpu
 import itertools
 import os
@@ -138,11 +137,6 @@ def load_from_csv(config, csv_dir_path, source_tokenizer, target_tokenizer, devi
     PAD_token = config.get('PAd_token')
     SOS_token = config.get('SOS_token')
 
-    val_dataset = pd.read_csv(f'{csv_dir_path}/val.csv')
-    val_dataset = val_dataset['trg'].values
-    val_dataset = map(target_tokenizer, val_dataset)
-    val_dataset = list(val_dataset)
-
     source_field = torchtext.data.Field(
         tokenize=source_tokenizer,
         init_token=SOS_token,
@@ -186,7 +180,7 @@ def load_from_csv(config, csv_dir_path, source_tokenizer, target_tokenizer, devi
 
     print('Data loader: Finished.')
 
-    return train_iter, val_iter, source_field.vocab, target_field.vocab, val_dataset
+    return train_iter, val_iter, source_field.vocab, target_field.vocab, val
 
 
 def list2words(language, sentence):
@@ -220,13 +214,3 @@ def get_text(source_words, target_words, translation_words, SOS_token, EOS_token
     Target: \"{target}\"
     Translation: \"{translation}\"
     """
-
-
-def get_bleu(source_language, target_language, batch, batch_size, translations, PAD_token):
-    reference_corpus = map(lambda i: torch2words(target_language, batch[:, i]), range(batch_size))
-    reference_corpus = map(lambda words: [list(filter(lambda word: word != PAD_token, words))], reference_corpus)
-    reference_corpus = list(reference_corpus)
-    translation_corpus = map(lambda i: list2words(target_language, translations[i]), range(batch_size))
-    translation_corpus = map(lambda words: list(filter(lambda word: word != PAD_token, words)), translation_corpus)
-    translation_corpus = list(translation_corpus)
-    return compute_bleu(reference_corpus, translation_corpus)

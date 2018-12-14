@@ -1,3 +1,4 @@
+from bleu import compute_bleu
 from device import select_device, with_cpu, with_gpu
 from numpy import savez
 from parse import get_config
@@ -7,7 +8,7 @@ import torchtext
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
-from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
+from utils import filter_words, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
 
 
@@ -30,7 +31,7 @@ def run(use_gpu, device, device_idx):
     val_dataset = config.get('val_dataset')
 
     def sample_validation_batches(k):
-        return torchtext.data.Batch(sample(val_data, k), val_dataset, device_idx)
+        return torchtext.data.Batch(sample(val_data, k), val_dataset, device)
 
     train(config, sample_validation_batches)
 
@@ -42,12 +43,12 @@ def train(config, sample_validation_batches):
     PAD_token = config.get('PAD_token')
     SOS_token = config.get('SOS_token')
     train_iter = config.get('train_iter')
+    val_iter = config.get('val_iter')
     writer_path = config.get('writer_path')
     writer_train_path = get_or_create_dir(writer_path, 'train')
     writer_val_path = get_or_create_dir(writer_path, 'val')
     writer_train = SummaryWriter(log_dir=writer_train_path)
     writer_val = SummaryWriter(log_dir=writer_val_path)
-    batch_size = config.get('batch_size')
     epochs = config.get('epochs')
     training = config.get('training')
     eval_every = training.get('eval_every')
@@ -59,30 +60,45 @@ def train(config, sample_validation_batches):
         print(f'Epoch: {epoch+1}/{epochs}')
         for i, training_batch in enumerate(train_iter):
             loss = train_batch(config, training_batch)
-
             writer_train.add_scalar('loss', loss, step)
 
-            should_evaluate = step % eval_every == 0
-            should_sample = step % sample_every == 0
-            if should_evaluate or should_sample:
-                val_batch = sample_validation_batches(batch_size)
+            if step % eval_every == 0:
+                val_lengths = 0
+                val_losses = 0
+                reference_corpus = []
+                translation_corpus = []
+                for val_batch in val_iter:
+                    val_loss, translations = evaluate_batch(config, val_batch)
+                    val_lengths += 1
+                    val_losses += val_loss
+                    val_batch_trg, _ = val_batch.trg
+                    _, batch_size = val_batch_trg.shape
+                    references = map(lambda i: torch2words(target_language, val_batch_trg[:, i]), range(batch_size))
+                    references = map(lambda words: [list(filter_words(words, SOS_token, EOS_token, PAD_token))], references)
+                    reference_corpus.extend(references)
+                    translations = map(lambda translation: list2words(target_language, translation), translations)
+                    translations = map(lambda words: list(filter_words(words, SOS_token, EOS_token, PAD_token)), translations)
+                    translation_corpus.extend(translations)
+                bleu = compute_bleu(reference_corpus, translation_corpus)
+                val_loss = val_losses / val_lengths
+                writer_val.add_scalar('bleu', bleu, step)
+                writer_val.add_scalar('loss', val_loss, step)
+
+            if step % sample_every == 0:
+                # batch_size = config.get('batch_size')
+                val_batch = sample_validation_batches(1)
+                val_batch_src, val_lengths_src = val_batch.src
                 val_batch_trg, _ = val_batch.trg
-                val_loss, translations, attention_weights, _, _ = evaluate_batch(config, val_batch)
-                if should_evaluate:
-                    bleu = get_bleu(source_language, target_language, val_batch_trg, batch_size, translations, PAD_token)
-                    writer_val.add_scalar('bleu', bleu, step)
-                    writer_val.add_scalar('loss', val_loss, step)
-                if should_sample:
-                    val_batch_src, val_lengths_src = val_batch.src
-                    s0 = val_lengths_src[0].item()
-                    source_words = torch2words(source_language, val_batch_src[:, 0])
-                    target_words = torch2words(target_language, val_batch_trg[:, 0])
-                    translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
-                    if sum(attention_weights.shape) != 0:
-                        attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
-                        writer_val.add_figure('attention', attention_figure, step)
-                    text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
-                    writer_val.add_text('translation', text, step)
+                s0 = val_lengths_src[0].item()
+                _, translations, attention_weights = evaluate_batch(config, val_batch, True)
+                source_words = torch2words(source_language, val_batch_src[:, 0])
+                target_words = torch2words(target_language, val_batch_trg[:, 0])
+                translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
+                if sum(attention_weights.shape) != 0:
+                    attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
+                    writer_val.add_figure('attention', attention_figure, step)
+                text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
+                writer_val.add_text('translation', text, step)
 
             step += 1
 
@@ -110,7 +126,7 @@ def train_batch(config, batch):
     input = target_batch[0].unsqueeze(0)
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
-        y, input, hidden, _ = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
+        y, input, hidden = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
         losses[i] = loss_fn(y, target_batch[i])
     loss = compute_batch_loss(losses, mask, target_lengths)
 
@@ -126,7 +142,7 @@ def train_batch(config, batch):
     return with_cpu(loss)
 
 
-def evaluate_batch(config, batch):
+def evaluate_batch(config, batch, sample=False):
     encoder, decoder = config.get('encoder'), config.get('decoder')
     EOS = config.get('EOS')
     PAD_src = config.get('PAD_src')
@@ -148,26 +164,34 @@ def evaluate_batch(config, batch):
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
         hidden = encoder_hidden
 
-        first_sentence_has_reached_end = False
-        translations = [[] for _ in range(batch_size)]
-        attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
+        translations = [[] for _ in range(batch_size)]
+        if sample:
+            first_sentence_has_reached_end = False
+            attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         for i in range(T):
-            y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
+            if sample:
+                y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size, sample)
+            else:
+                y, input, hidden = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size, sample)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
 
             for j in range(batch_size):
                 translations[j].append(input[0, j].item())
 
-            # don't add padding to attention visualiation
-            decoded_word = translations[0][i]
-            if not first_sentence_has_reached_end and decoded_word != PAD_trg:
-                # add attention weights of first sentence in batch
-                attention_weights = torch.cat((attention_weights, attention))
-                first_sentence_has_reached_end = decoded_word == EOS
+            if sample:
+                # don't add padding to attention visualiation
+                decoded_word = translations[0][i]
+                if not first_sentence_has_reached_end and decoded_word != PAD_trg:
+                    # add attention weights of first sentence in batch
+                    attention_weights = torch.cat((attention_weights, attention))
+                    first_sentence_has_reached_end = decoded_word == EOS
         loss = compute_batch_loss(losses, mask, target_lengths)
 
-        return with_cpu(loss), translations, with_cpu(attention_weights), encoder_hidden, hidden
+        if sample:
+            return with_cpu(loss), translations, with_cpu(attention_weights)
+        else:
+            return with_cpu(loss), translations
 
 
 def encode(encoder, batch, window_size, PAD):
@@ -181,12 +205,19 @@ def encode(encoder, batch, window_size, PAD):
     return output, hidden, S, T
 
 
-def decode_word(decoder, encoder_output, input, hidden, lengths, batch_size):
-    y, hidden, attention = decoder(encoder_output, input, hidden, lengths)
+def decode_word(decoder, encoder_output, input, hidden, lengths, batch_size, output_weights=False):
+    decoded = decoder(encoder_output, input, hidden, lengths, output_weights)
+    if output_weights:
+        y, hidden, attention = decoded
+    else:
+        y, hidden = decoded
     _, topi = y.topk(1)
     input = topi.detach().view(1, batch_size)
     y = y.view(batch_size, -1)
-    return y, input, hidden, attention
+    if output_weights:
+        return y, input, hidden, attention
+    else:
+        return y, input, hidden
 
 
 def pad_with_window_size(batch, window_size, pad):

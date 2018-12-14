@@ -41,9 +41,9 @@ def get_config(use_gpu, device, device_idx):
     config['target_vocabulary_size'] = len(trg_language.itos)
     config['train_iter'] = train_iter
     config['val_iter'] = val_iter
+    config['val_dataset'] = val_dataset
     config['src_language'] = src_language
     config['trg_language'] = trg_language
-    config['val_dataset'] = val_dataset
     config["decoder"] = Decoder(config, device)
     config["encoder"] = Encoder(config, device)
     if use_gpu:

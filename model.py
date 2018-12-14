@@ -65,15 +65,22 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, encoder_output, target_words, hidden, lengths):
+    def forward(self, encoder_output, target_words, hidden, lengths, output_weights=False):
         T, batch_size = target_words.shape
         embedded = self.embedding(target_words)
         output, hidden = self.lstm(embedded, hidden)
-        c, a = self.attention(encoder_output, output, lengths, T, batch_size)
+        attention = self.attention(encoder_output, output, lengths, T, batch_size, output_weights)
+        if output_weights:
+            c, weights = attention
+        else:
+            c = attention
         output = torch.cat((c, output), 2)
         output = self.relu(self.fc1(output))
         y = self.fc2(output)
-        return y, hidden, a
+        if output_weights:
+            return y, hidden, weights
+        else:
+            return y, hidden
 
 
 class Attention(nn.Module):
@@ -90,7 +97,7 @@ class Attention(nn.Module):
         self.fc1 = nn.Linear(in_features=hidden_size, out_features=math.ceil(hidden_size / 2))
         self.fc2 = nn.Linear(in_features=math.ceil(hidden_size / 2), out_features=1)
 
-    def forward(self, encoder_output, decoder_output, lengths, T, batch_size):
+    def forward(self, encoder_output, decoder_output, lengths, T, batch_size, output_weights):
         s0 = lengths[0].item()
         lengths = lengths.view(batch_size, 1)
         window_length = 2 * self.window_size + 1
@@ -147,6 +154,9 @@ class Attention(nn.Module):
 
         # T x batch_size x hidden_size
         c = c.permute(1, 0, 2)
+
+        if not output_weights:
+            return c
 
         # insert weights of first sentence for eventual visualiation
         weights = torch.zeros((T, s0), device=self.device, dtype=torch.float)
