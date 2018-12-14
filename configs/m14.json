@@ -4,6 +4,7 @@
   },
   "batch_size": 128,
   "epochs": 100,
+  "gradient_clipping": true,
   "name": "m14",
   "optimizer": {
     "learning_rate": 0.005,

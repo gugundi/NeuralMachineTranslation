@@ -4,6 +4,7 @@
   },
   "batch_size": 32,
   "epochs": 16,
+  "gradient_clipping": true,
   "name": "c5",
   "optimizer": {
     "momentum": 0.9,

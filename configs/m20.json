@@ -4,6 +4,7 @@
   },
   "batch_size": 128,
   "epochs": 200,
+  "gradient_clipping": true,
   "name": "m20",
   "optimizer": {
     "learning_rate": 0.003,

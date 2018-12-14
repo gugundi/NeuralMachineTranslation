@@ -6,13 +6,9 @@ from tensorboardX import SummaryWriter
 import torchtext
 import torch
 import torch.nn as nn
-# import torch.save as save
 from torch.nn.utils import clip_grad_norm_
 from utils import get_bleu, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
-
-
-# TODO: save and load weights
 
 
 def main():
@@ -98,6 +94,7 @@ def train_batch(config, batch):
     SOS = config.get('SOS')
     window_size = config.get('window_size')
     loss_fn = config.get('loss_fn')
+    gradient_clipping = config.get('gradient_clipping')
     teacher_forcing = config.get('teacher_forcing')
 
     encoder.train()
@@ -120,8 +117,9 @@ def train_batch(config, batch):
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
     loss.backward()
-    clip_grad_norm_(encoder.parameters(), 1)
-    clip_grad_norm_(decoder.parameters(), 1)
+    if gradient_clipping:
+        clip_grad_norm_(encoder.parameters(), 1)
+        clip_grad_norm_(decoder.parameters(), 1)
     encoder_optimizer.step()
     decoder_optimizer.step()
 
