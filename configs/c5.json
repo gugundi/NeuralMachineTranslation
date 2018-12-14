@@ -7,7 +7,7 @@
   "name": "c5",
   "optimizer": {
     "momentum": 0.9,
-    "learning_rate": 0.4,
+    "learning_rate": 0.2,
     "type": "SGD",
     "weight_decay": 0
   },
