@@ -59,6 +59,55 @@ def create_dummy_fixed_length_csv():
     val.to_csv('.data/dummy_fixed_length/val.csv', index=False)
 
 
+def create_iwslt():
+    with open('.data/iwslt/de-en/train.de-en.de') as f:
+        source = f.readlines()
+        source = map(lambda sentence: sentence.replace('\n', ''), source)
+        source = filter(lambda sentence: sentence != '', source)
+        source = list(source)
+    with open('.data/iwslt/de-en/train.de-en.en') as f:
+        target = f.readlines()
+        target = map(lambda sentence: sentence.replace('\n', ''), target)
+        target = filter(lambda sentence: sentence != '', target)
+        target = list(target)
+    data = {"src": source, "trg": target}
+    dataframe = pd.DataFrame(data, columns=['src', 'trg'])
+    train, val = train_test_split(dataframe, test_size=0.1)
+    train.to_csv('.data/iwslt/train.csv', index=False)
+    val.to_csv('.data/iwslt/val.csv', index=False)
+
+
+def create_multi30k():
+    with open('.data/multi30k/train.de') as f:
+        train_src = f.readlines()
+        train_src = map(lambda sentence: sentence.replace('\n', ''), train_src)
+        train_src = filter(lambda sentence: sentence != '', train_src)
+        train_src = list(train_src)
+    with open('.data/multi30k/train.en') as f:
+        train_trg = f.readlines()
+        train_trg = map(lambda sentence: sentence.replace('\n', ''), train_trg)
+        train_trg = filter(lambda sentence: sentence != '', train_trg)
+        train_trg = list(train_trg)
+    train = {"src": train_src, "trg": train_trg}
+    train = pd.DataFrame(train, columns=['src', 'trg'])
+
+    with open('.data/multi30k/val.de') as f:
+        val_src = f.readlines()
+        val_src = map(lambda sentence: sentence.replace('\n', ''), val_src)
+        val_src = filter(lambda sentence: sentence != '', val_src)
+        val_src = list(val_src)
+    with open('.data/multi30k/val.en') as f:
+        val_trg = f.readlines()
+        val_trg = map(lambda sentence: sentence.replace('\n', ''), val_trg)
+        val_trg = filter(lambda sentence: sentence != '', val_trg)
+        val_trg = list(val_trg)
+    val = {"src": val_src, "trg": val_trg}
+    val = pd.DataFrame(val, columns=['src', 'trg'])
+
+    train.to_csv('.data/multi30k/train.csv', index=False)
+    val.to_csv('.data/multi30k/val.csv', index=False)
+
+
 def create_dummy_variable_length_csv():
     n_observations = 10000
     min_source_length = 3
@@ -82,7 +131,18 @@ def create_dummy_variable_length_csv():
     val.to_csv('.data/dummy_variable_length/val.csv', index=False)
 
 
-def load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, source_tokenizer, target_tokenizer, device):
+def load_from_csv(config, csv_dir_path, source_tokenizer, target_tokenizer, device):
+    print(f'Data loader: Started ({csv_dir_path}).')
+
+    EOS_token = config.get('EOS_token')
+    PAD_token = config.get('PAd_token')
+    SOS_token = config.get('SOS_token')
+
+    val_dataset = pd.read_csv(f'{csv_dir_path}/val.csv')
+    val_dataset = val_dataset['trg'].values
+    val_dataset = map(target_tokenizer, val_dataset)
+    val_dataset = list(val_dataset)
+
     source_field = torchtext.data.Field(
         tokenize=source_tokenizer,
         init_token=SOS_token,
@@ -98,6 +158,8 @@ def load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, source_
         include_lengths=True
     )
     data_fields = [('src', source_field), ('trg', target_field)]
+
+    print('Data loader: Making splits.')
     train, val = torchtext.data.TabularDataset.splits(
         path=csv_dir_path,
         train='train.csv',
@@ -108,8 +170,12 @@ def load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, source_
     )
     source_vocabulary_size = config.get('source_vocabulary_size')
     target_vocabulary_size = config.get('target_vocabulary_size')
+
+    print('Data loader: Building vocabulary.')
     source_field.build_vocab(train, val, max_size=source_vocabulary_size)
     target_field.build_vocab(train, val, max_size=target_vocabulary_size)
+
+    print('Data loader: Iterator splits splits.')
     train_iter, val_iter = torchtext.data.BucketIterator.splits(
         (train, val),
         batch_size=config.get('batch_size'),
@@ -117,7 +183,10 @@ def load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, source_
         shuffle=True,
         sort_key=lambda x: len(x.src)
     )
-    return train_iter, val_iter, source_field.vocab, target_field.vocab, train, val
+
+    print('Data loader: Finished.')
+
+    return train_iter, val_iter, source_field.vocab, target_field.vocab, val_dataset
 
 
 def list2words(language, sentence):

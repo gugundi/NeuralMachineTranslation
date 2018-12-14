@@ -1,7 +1,15 @@
 import os
 import spacy
 import torchtext
-from utils import create_debug_csv, create_dummy_fixed_length_csv, create_dummy_variable_length_csv, get_or_create_dir, load_from_csv
+from utils import (
+    create_debug_csv,
+    create_multi30k,
+    create_iwslt,
+    create_dummy_fixed_length_csv,
+    create_dummy_variable_length_csv,
+    get_or_create_dir,
+    load_from_csv
+)
 
 
 # load tokenizers for german and english
@@ -21,110 +29,43 @@ def tokenize_dummy(text):
     return text.split(' ')
 
 
-def load_debug(config, SOS_token, EOS_token, PAD_token, device):
+def load_debug(config, device):
     csv_dir_path = get_or_create_dir('.data', 'debug')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_debug_csv()
-    return load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, tokenize_de, tokenize_en, device)
+    return load_from_csv(config, csv_dir_path, tokenize_de, tokenize_en, device)
 
 
-def load_dummy_fixed_length(config, SOS_token, EOS_token, PAD_token, device):
+def load_dummy_fixed_length(config, device):
     csv_dir_path = get_or_create_dir('.data', 'dummy_fixed_length')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_dummy_fixed_length_csv()
-    return load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
+    return load_from_csv(config, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
 
 
-def load_dummy_variable_length(config, SOS_token, EOS_token, PAD_token, device):
+def load_dummy_variable_length(config, device):
     csv_dir_path = get_or_create_dir('.data', 'dummy_variable_length')
     if not os.path.exists(f'{csv_dir_path}/train.csv'):
         create_dummy_variable_length_csv()
-    return load_from_csv(config, SOS_token, EOS_token, PAD_token, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
+    return load_from_csv(config, csv_dir_path, tokenize_dummy, tokenize_dummy, device)
 
 
-def load_iwslt(config, SOS_token, EOS_token, PAD_token, device):
-    print("Started data-loader: IWSLT (de-en)")
-
-    # set up fields for IWSLT
-    DE_IWSLT = torchtext.data.Field(
-        tokenize=tokenize_de,
-        init_token=SOS_token,
-        eos_token=EOS_token,
-        pad_token=PAD_token,
-        include_lengths=True
-    )
-    EN_IWSLT = torchtext.data.Field(
-        tokenize=tokenize_en,
-        init_token=SOS_token,
-        eos_token=EOS_token,
-        pad_token=PAD_token,
-        include_lengths=True
-    )
-
-    print("Making splits for IWSLT")
-    # make splits for data in IWSLT
-    train_iwslt, val_iwslt, test_iwslt = torchtext.datasets.IWSLT.splits(exts=('.de', '.en'), fields=(DE_IWSLT, EN_IWSLT))
-
-    print("Building vocabulary for IWSLT")
-    # build the vocabulary of IWSLT
-    source_vocabulary_size = config.get('source_vocabulary_size')
-    target_vocabulary_size = config.get('target_vocabulary_size')
-    DE_IWSLT.build_vocab(train_iwslt.src, max_size=source_vocabulary_size)
-    EN_IWSLT.build_vocab(train_iwslt.trg, max_size=target_vocabulary_size)
-
-    print("Making iterator splits for IWSLT")
-    # make iterator for splits in IWSLT
-    train_iter_iwslt, val_iter_iwslt = torchtext.data.BucketIterator.splits(
-        (train_iwslt, val_iwslt),
-        batch_size=config.get('batch_size'),
-        device=device,
-        shuffle=True
-    )
-
-    print("Finished loading IWSLT")
-
-    return train_iter_iwslt, val_iter_iwslt, DE_IWSLT.vocab, EN_IWSLT.vocab, train_iwslt, val_iwslt
+def load_iwslt(config, device):
+    csv_dir_path = get_or_create_dir('.data', 'iwslt')
+    if not os.path.exists(f'{csv_dir_path}/train.csv'):
+        if not os.path.exists(f'{csv_dir_path}/de-en'):
+            source_field = torchtext.data.Field(tokenize=tokenize_de)
+            target_field = torchtext.data.Field(tokenize=tokenize_en)
+            torchtext.datasets.IWSLT.splits(exts=('.de', '.en'), fields=(source_field, target_field))
+        create_iwslt()
+    return load_from_csv(config, csv_dir_path, tokenize_de, tokenize_en, device)
 
 
-def load_multi30k(config, SOS_token, EOS_token, PAD_token, device):
-    print("Started data-loader: Multi30K (de-en)")
-
-    # set up fields for IWSLT
-    DE_MULTI30K = torchtext.data.Field(
-        tokenize=tokenize_de,
-        init_token=SOS_token,
-        eos_token=EOS_token,
-        pad_token=PAD_token,
-        include_lengths=True
-    )
-    EN_MULTI30K = torchtext.data.Field(
-        tokenize=tokenize_en,
-        init_token=SOS_token,
-        eos_token=EOS_token,
-        pad_token=PAD_token,
-        include_lengths=True
-    )
-
-    print("Making splits for Multi30K")
-    # make splits for data in IWSLT
-    train_multi30k, val_multi30k, test_multi30k = torchtext.datasets.Multi30k.splits(exts=('.de', '.en'), fields=(DE_MULTI30K, EN_MULTI30K))
-
-    print("Building vocabulary for Multi30K")
-    # build the vocabulary of IWSLT
-    source_vocabulary_size = config.get('source_vocabulary_size')
-    target_vocabulary_size = config.get('target_vocabulary_size')
-    DE_MULTI30K.build_vocab(train_multi30k.src, max_size=source_vocabulary_size)
-    EN_MULTI30K.build_vocab(train_multi30k.trg, max_size=target_vocabulary_size)
-
-    print("Making iterator splits for Multi30K")
-    # make iterator for splits in IWSLT
-    train_iter_multi30k, val_iter_multi30k = torchtext.data.BucketIterator.splits(
-        (train_multi30k, val_multi30k),
-        batch_size=config.get('batch_size'),
-        device=device,
-        shuffle=True
-    )
-
-    print("Finished loading Multi30K")
-
-    return train_iter_multi30k, val_iter_multi30k, DE_MULTI30K.vocab, EN_MULTI30K.vocab, train_multi30k, val_multi30k
+def load_multi30k(config, device):
+    csv_dir_path = get_or_create_dir('.data', 'multi30k')
+    if not os.path.exists(f'{csv_dir_path}/train.csv'):
+        source_field = torchtext.data.Field(tokenize=tokenize_de)
+        target_field = torchtext.data.Field(tokenize=tokenize_en)
+        torchtext.datasets.Multi30k.splits(exts=('.de', '.en'), fields=(source_field, target_field))
+        create_multi30k()
+    return load_from_csv(config, csv_dir_path, tokenize_de, tokenize_en, device)
