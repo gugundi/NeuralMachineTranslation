@@ -1,6 +1,7 @@
 from bleu import compute_bleu
 from device import select_device, with_cpu, with_gpu
-from numpy import savez
+import json
+import numpy as np
 from parse import get_config
 from random import sample
 from tensorboardX import SummaryWriter
@@ -33,6 +34,23 @@ def run(use_gpu, device, device_idx):
     def sample_validation_batches(k):
         return torchtext.data.Batch(sample(val_data, k), val_dataset, device)
 
+    # save source and target language vocabularies
+    source_language = config.get('src_language')
+    target_language = config.get('trg_language')
+    data = {
+        "source": {
+            "itos": source_language.itos,
+            "stoi": source_language.stoi,
+        },
+        "target": {
+            "itos": target_language.itos,
+            "stoi": target_language.stoi,
+        },
+    }
+    weights_path = config.get('weights_path')
+    with open(f'{weights_path}/language.json', 'w') as f:
+        json.dump(data, f)
+
     train(config, sample_validation_batches)
 
 
@@ -53,11 +71,10 @@ def train(config, sample_validation_batches):
     training = config.get('training')
     eval_every = training.get('eval_every')
     sample_every = training.get('sample_every')
-    weights_dir = get_or_create_dir('.weights', config.get("name"))
-    write_to_weights = True
     step = 1
     for epoch in range(epochs):
         print(f'Epoch: {epoch+1}/{epochs}')
+        save_weights(config)
         for i, training_batch in enumerate(train_iter):
             loss = train_batch(config, training_batch)
             writer_train.add_scalar('loss', loss, step)
@@ -101,6 +118,7 @@ def train(config, sample_validation_batches):
                 writer_val.add_text('translation', text, step)
 
             step += 1
+    save_weights(config)
 
 
 def train_batch(config, batch):
@@ -264,15 +282,20 @@ def compute_batch_loss(loss, mask, lengths):
     return loss
 
 
-def writeToWeights(config, weights_dir, encoder_hidden, decoder_hidden, attention_weights):
-    # save(encoder_hidden, f'{weights_dir}/encoder.pt')
-    # save(decoder_hidden, f'{weights_dir}/decoder.pt')
-    # save(attention_weights, f'{weights_dir}/attention.pt')
-
-    # with open(f'{weights_dir}/params.txt', 'w') as file_params:
-    #     # Load data with np.load('.weights/{config.get("name")}/params.txt')
-    #     file_params.write('{source_language}\n{target_language}')
-    pass
+def save_weights(config):
+    weights_path = config.get("weights_path")
+    decoder_path = f'{weights_path}/decoder'
+    decoder = config.get('decoder')
+    decoder_weights = decoder.parameters()
+    decoder_weights = map(lambda p: with_cpu(p).detach().numpy(), decoder_weights)
+    decoder_weights = list(decoder_weights)
+    encoder_path = f'{weights_path}/encoder'
+    encoder = config.get('encoder')
+    encoder_weights = encoder.parameters()
+    encoder_weights = map(lambda p: with_cpu(p).detach().numpy(), encoder_weights)
+    encoder_weights = list(encoder_weights)
+    np.save(decoder_path, decoder_weights)
+    np.save(encoder_path, encoder_weights)
 
 
 if __name__ == '__main__':

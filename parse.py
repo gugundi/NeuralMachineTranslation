@@ -32,6 +32,7 @@ def get_config(use_gpu, device, device_idx):
     if args.name is not None:
         config['name'] = args.name
     file_path = os.path.dirname(os.path.realpath(__file__))
+    config['weights_path'] = get_or_create_dir(file_path, f'.weights/{config.get("name")}')
     config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
     config['EOS'] = trg_language.stoi[EOS_token]
     config['PAD_src'] = src_language.stoi[PAD_token]
