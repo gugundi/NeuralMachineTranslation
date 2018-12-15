@@ -1,7 +1,6 @@
 from bleu import compute_bleu
 from device import select_device, with_cpu, with_gpu
 import json
-import numpy as np
 from parse import get_config
 from random import sample
 from tensorboardX import SummaryWriter
@@ -286,16 +285,12 @@ def save_weights(config):
     weights_path = config.get("weights_path")
     decoder_path = f'{weights_path}/decoder'
     decoder = config.get('decoder')
-    decoder_weights = decoder.parameters()
-    decoder_weights = map(lambda p: with_cpu(p).detach().numpy(), decoder_weights)
-    decoder_weights = list(decoder_weights)
+    decoder_weights = decoder.state_dict()
     encoder_path = f'{weights_path}/encoder'
     encoder = config.get('encoder')
-    encoder_weights = encoder.parameters()
-    encoder_weights = map(lambda p: with_cpu(p).detach().numpy(), encoder_weights)
-    encoder_weights = list(encoder_weights)
-    np.save(decoder_path, decoder_weights)
-    np.save(encoder_path, encoder_weights)
+    encoder_weights = encoder.state_dict()
+    torch.save(decoder_weights, decoder_path)
+    torch.save(encoder_weights, encoder_path)
 
 
 if __name__ == '__main__':
