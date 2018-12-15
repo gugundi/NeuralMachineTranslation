@@ -11,12 +11,16 @@ USE_GPU = torch.cuda.is_available()
 def select_device():
     """Selects GPU with the most available memory or CPU if cuda is not enabled."""
     if USE_GPU:
-        gpus = subprocess.check_output(['nvidia-smi', '--format=csv', '--query-gpu=memory.used,memory.free'])
-        stream = BytesIO(gpus)
-        dataframe = pd.read_csv(stream, names=['memory.used', 'memory.free'], skiprows=1)
-        dataframe['memory.free'] = dataframe['memory.free'].map(lambda x: float(x.rstrip(' [MiB]')))
-        device_idx = dataframe['memory.free'].idxmax()
-        device = torch.device(f'cuda:{device_idx}')
+        try:
+            gpus = subprocess.check_output(['nvidia-smi', '--format=csv', '--query-gpu=memory.used,memory.free'])
+            stream = BytesIO(gpus)
+            dataframe = pd.read_csv(stream, names=['memory.used', 'memory.free'], skiprows=1)
+            dataframe['memory.free'] = dataframe['memory.free'].map(lambda x: float(x.rstrip(' [MiB]')))
+            device_idx = dataframe['memory.free'].idxmax()
+            device = torch.device(f'cuda:{device_idx}')
+        except Exception:
+            device_idx = -1
+            device = torch.device('cpu')
     else:
         device_idx = -1
         device = torch.device('cpu')

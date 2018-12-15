@@ -3,14 +3,22 @@ from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable
 import json
 from model import Encoder, Decoder
 import os
+import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils import get_or_create_dir
 
 
-def get_config(use_gpu, device, device_idx):
-    args = parse_arguments()
-    config_path = args.config
+def get_config(use_gpu, device, device_idx, **kwargs):
+    config_path = kwargs.get('config_path', None)
+    load_weights = kwargs.get('load_weights', False)
+    parse_args = kwargs.get('parse_args', True)
+    if parse_args:
+        args = parse_arguments()
+    else:
+        args = DummyArgs()
+    if args.config is not None:
+        config_path = args.config
     with open(config_path, 'r') as f:
         config = json.load(f)
     EOS_token = '<eos>'
@@ -19,30 +27,39 @@ def get_config(use_gpu, device, device_idx):
     config['EOS_token'] = EOS_token
     config['SOS_token'] = SOS_token
     config['PAD_token'] = PAD_token
-    if args.debug:
-        train_iter, val_iter, src_language, trg_language, val_dataset = load_debug(config, device)
-    elif args.dummy_fixed_length:
-        train_iter, val_iter, src_language, trg_language, val_dataset = load_dummy_fixed_length(config, device)
-    elif args.dummy_variable_length:
-        train_iter, val_iter, src_language, trg_language, val_dataset = load_dummy_variable_length(config, device)
-    elif args.iwslt:
-        train_iter, val_iter, src_language, trg_language, val_dataset = load_iwslt(config, device)
-    else:
-        train_iter, val_iter, src_language, trg_language, val_dataset = load_multi30k(config, device)
     if args.name is not None:
         config['name'] = args.name
     file_path = os.path.dirname(os.path.realpath(__file__))
-    config['weights_path'] = get_or_create_dir(file_path, f'.weights/{config.get("name")}')
-    config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
+    weights_path = get_or_create_dir(file_path, f'.weights/{config.get("name")}')
+    config['weights_path'] = weights_path
+    if load_weights:
+        language_path = f'{weights_path}/language.json'
+        with open(language_path, 'r') as f:
+            language_data = json.load(f)
+        src_language = Language(language_data.get('source'))
+        trg_language = Language(language_data.get('target'))
+    else:
+        if args.debug:
+            train_iter, val_iter, src_language, trg_language, val_dataset = load_debug(config, device)
+        elif args.dummy_fixed_length:
+            train_iter, val_iter, src_language, trg_language, val_dataset = load_dummy_fixed_length(config, device)
+        elif args.dummy_variable_length:
+            train_iter, val_iter, src_language, trg_language, val_dataset = load_dummy_variable_length(config, device)
+        elif args.iwslt:
+            train_iter, val_iter, src_language, trg_language, val_dataset = load_iwslt(config, device)
+        else:
+            train_iter, val_iter, src_language, trg_language, val_dataset = load_multi30k(config, device)
+        config['writer_path'] = get_or_create_dir(file_path, f'.logs/{config.get("name")}')
+        config['train_iter'] = train_iter
+        config['val_iter'] = val_iter
+        config['val_dataset'] = val_dataset
+        config['teacher_forcing'] = config.get('teacher_forcing', 0)
+    config['source_vocabulary_size'] = len(src_language.itos)
+    config['target_vocabulary_size'] = len(trg_language.itos)
     config['EOS'] = trg_language.stoi[EOS_token]
     config['PAD_src'] = src_language.stoi[PAD_token]
     config['PAD_trg'] = trg_language.stoi[PAD_token]
     config['SOS'] = trg_language.stoi[SOS_token]
-    config['source_vocabulary_size'] = len(src_language.itos)
-    config['target_vocabulary_size'] = len(trg_language.itos)
-    config['train_iter'] = train_iter
-    config['val_iter'] = val_iter
-    config['val_dataset'] = val_dataset
     config['src_language'] = src_language
     config['trg_language'] = trg_language
     config["decoder"] = Decoder(config, device)
@@ -50,11 +67,15 @@ def get_config(use_gpu, device, device_idx):
     if use_gpu:
         config["decoder"] = config["decoder"].to(device)
         config["encoder"] = config["encoder"].to(device)
+    if load_weights:
+        decoder_path = f'{weights_path}/decoder'
+        encoder_path = f'{weights_path}/encoder'
+        config['decoder'].load_state_dict(torch.load(decoder_path))
+        config['encoder'].load_state_dict(torch.load(encoder_path))
     config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
     config['window_size'] = config.get('attention').get('window_size')
     config['loss_fn'] = nn.CrossEntropyLoss()
-    config['teacher_forcing'] = config.get('teacher_forcing', 0)
     return config
 
 
@@ -92,3 +113,19 @@ def get_optimizer(config, model):
         return optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     else:
         raise Exception(f'Unknown optimizer: {type}')
+
+
+class DummyArgs():
+    config = None
+    debug = False
+    dummy_fixed_length = False
+    dummy_variable_length = False
+    iwslt = False
+    name = None
+
+
+class Language:
+
+    def __init__(self, data):
+        self.itos = data.get('itos')
+        self.stoi = data.get('stoi')
