@@ -103,8 +103,22 @@ def create_multi30k():
     val = {"src": val_src, "trg": val_trg}
     val = pd.DataFrame(val, columns=['src', 'trg'])
 
+    with open('.data/multi30k/test2016.de') as f:
+        test_src = f.readlines()
+        test_src = map(lambda sentence: sentence.replace('\n', ''), test_src)
+        test_src = filter(lambda sentence: sentence != '', test_src)
+        test_src = list(test_src)
+    with open('.data/multi30k/test2016.en') as f:
+        test_trg = f.readlines()
+        test_trg = map(lambda sentence: sentence.replace('\n', ''), test_trg)
+        test_trg = filter(lambda sentence: sentence != '', test_trg)
+        test_trg = list(test_trg)
+    test = {"src": test_src, "trg": test_trg}
+    test = pd.DataFrame(test, columns=['src', 'trg'])
+
     train.to_csv('.data/multi30k/train.csv', index=False)
     val.to_csv('.data/multi30k/val.csv', index=False)
+    test.to_csv('.data/multi30k/test.csv', index=False)
 
 
 def create_dummy_variable_length_csv():
