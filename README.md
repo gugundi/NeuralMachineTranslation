@@ -8,9 +8,9 @@ The authors of this project is Gabriel Kihembo Enemark-Broholm, Christoffer Øhr
 We managed to get a BLEU score of 47 on the Multi30k dataset
 
 ## Recreating results
-Run the program with configuration (m27.json)
+Run the program with configuration (final.json)
 
-*python main.py --config m27.json*
+*python main.py --config final.json*
 
 # How to run
 Navigate to the root folder of the project and run the following command in terminal/cmd:
