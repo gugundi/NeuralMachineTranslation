@@ -137,13 +137,13 @@ def train_batch(config, batch):
     target_batch, target_lengths = batch.trg
     _, batch_size = target_batch.size()
     mask = create_mask(batch.trg)
-    encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD)
+    encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, source_lengths, PAD)
     hidden = encoder_hidden
 
     input = target_batch[0].unsqueeze(0)
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
-        y, input, hidden = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size)
+        y, input, hidden, context = decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size)
         losses[i] = loss_fn(y, target_batch[i])
     loss = compute_batch_loss(losses, mask, target_lengths)
 
@@ -176,7 +176,7 @@ def evaluate_batch(config, batch, sample=False):
         target_batch, target_lengths = batch.trg
         batch_size = target_batch.size()[1]
         mask = create_mask(batch.trg)
-        encoder_output, encoder_hidden, S, T = encode(encoder, batch, window_size, PAD_src)
+        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, source_lengths, PAD_src)
 
         input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
         hidden = encoder_hidden
@@ -188,9 +188,11 @@ def evaluate_batch(config, batch, sample=False):
             attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
         for i in range(T):
             if sample:
-                y, input, hidden, attention = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size, sample)
+                y, input, hidden, context, attention = (
+                    decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size, sample)
+                )
             else:
-                y, input, hidden = decode_word(decoder, encoder_output, input, hidden, source_lengths, batch_size, sample)
+                y, input, hidden, context = decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size, sample)
             compute_word_loss(losses, i, y, target_batch, loss_fn)
 
             for j in range(batch_size):
@@ -211,7 +213,7 @@ def evaluate_batch(config, batch, sample=False):
             return with_cpu(loss), translations
 
 
-def encode(encoder, batch, window_size, PAD):
+def encode(encoder, batch, window_size, lengths, PAD):
     source_batch, _ = batch.src
     target_batch, _ = batch.trg
     batch_size = source_batch.shape[1]
@@ -219,22 +221,28 @@ def encode(encoder, batch, window_size, PAD):
     T = target_batch.size(0)
     input = pad_with_window_size(source_batch, window_size, PAD)
     output, hidden = encoder(input)
-    return output, hidden, S, T
+    context_indices = window_size + lengths - 1
+    # select last word of encoded output
+    context = with_gpu(torch.empty((1, batch_size, hidden[0].shape[2])))
+    for i in range(batch_size):
+        index = context_indices[i]
+        context[0, i] = output[index, i]
+    return output, hidden, context, S, T
 
 
-def decode_word(decoder, encoder_output, input, hidden, lengths, batch_size, output_weights=False):
-    decoded = decoder(encoder_output, input, hidden, lengths, output_weights)
+def decode_word(decoder, encoder_output, input, hidden, context, lengths, batch_size, output_weights=False):
+    decoded = decoder(encoder_output, input, hidden, context, lengths, output_weights)
     if output_weights:
-        y, hidden, attention = decoded
+        y, hidden, context, attention = decoded
     else:
-        y, hidden = decoded
+        y, hidden, context = decoded
     _, topi = y.topk(1)
     input = topi.detach().view(1, batch_size)
     y = y.view(batch_size, -1)
     if output_weights:
-        return y, input, hidden, attention
+        return y, input, hidden, context, attention
     else:
-        return y, input, hidden
+        return y, input, hidden, context
 
 
 def pad_with_window_size(batch, window_size, pad):

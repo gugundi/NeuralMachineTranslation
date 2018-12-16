@@ -78,6 +78,7 @@ def get_config(use_gpu, device, device_idx, **kwargs):
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
     config['window_size'] = config.get('attention').get('window_size')
     config['loss_fn'] = nn.CrossEntropyLoss()
+    config['input_feeding'] = config.get('input_feeding', False)
     return config
 
 

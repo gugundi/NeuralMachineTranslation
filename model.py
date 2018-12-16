@@ -41,6 +41,7 @@ class Decoder(nn.Module):
         dropout = rnn_config.get('dropout')
         window_size = attention_config.get('window_size')
         self.device = device
+        self.input_feeding = config.get('input_feeding')
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
 
@@ -49,8 +50,9 @@ class Decoder(nn.Module):
             num_embeddings=target_vocabulary_size,
             embedding_dim=self.hidden_size,
         )
+        lstm_input_size = 2 * self.hidden_size if self.input_feeding else self.hidden_size
         self.lstm = nn.LSTM(
-            input_size=self.hidden_size,
+            input_size=lstm_input_size,
             hidden_size=self.hidden_size,
             num_layers=self.num_layers,
             dropout=dropout,
@@ -65,10 +67,14 @@ class Decoder(nn.Module):
             out_features=target_vocabulary_size,
         )
 
-    def forward(self, encoder_output, target_words, hidden, lengths, output_weights=False):
+    def forward(self, encoder_output, target_words, hidden, context, lengths, output_weights=False):
         T, batch_size = target_words.shape
         embedded = self.embedding(target_words)
-        output, hidden = self.lstm(embedded, hidden)
+        if self.input_feeding:
+            input = torch.cat((embedded, context), 2)
+        else:
+            input = embedded
+        output, hidden = self.lstm(input, hidden)
         attention = self.attention(encoder_output, output, lengths, T, batch_size, output_weights)
         if output_weights:
             c, weights = attention
@@ -78,9 +84,9 @@ class Decoder(nn.Module):
         output = self.relu(self.fc1(output))
         y = self.fc2(output)
         if output_weights:
-            return y, hidden, weights
+            return y, hidden, c, weights
         else:
-            return y, hidden
+            return y, hidden, c
 
 
 class Attention(nn.Module):
