@@ -148,7 +148,7 @@ def load_from_csv(config, csv_dir_path, source_tokenizer, target_tokenizer, devi
     print(f'Data loader: Started ({csv_dir_path}).')
 
     EOS_token = config.get('EOS_token')
-    PAD_token = config.get('PAd_token')
+    PAD_token = config.get('PAD_token')
     SOS_token = config.get('SOS_token')
 
     source_field = torchtext.data.Field(
