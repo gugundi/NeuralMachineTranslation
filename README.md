@@ -5,13 +5,40 @@ An implementation of a neural machine translation system with a LSTM encoder-dec
 The authors of this project is Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
 
 # Results
-TODO
+We managed to get a BLEU score of 47 on the Multi30k dataset
 
 ## Recreating results
-TODO
+Run the program with configuration (m27.json)
+
+*python main.py --config m27.json*
 
 # How to run
-TODO
+Navigate to the root folder of the project and run the following command in terminal/cmd:
+
+*python main.py*
+
+The following arguments may then be added:
+
+* --config_path
+  + For specifying the path to the configurations folder
+* --load_weights
+  + For loading previously stored weights of model (boolean)
+* --config
+  + Path to model configuration (defaults to 'configs/default.json')
+* --debug
+  + Debug mode
+* --dummy_fixed_length
+  + Use a dummy dataset of fixed length sentences
+* --dummy_variable_length
+  + Use a dummy dataset of variable length sentences
+* --iwslt
+  + Use the IWSLT dataset
+* --name
+  + Name used when writing to tensorboard (visualiation)
+
+The default dataset is the Multi30K dataset.
+
 
 # Dependencies
-TODO
+* Python 3.6.5
+* Run script hpc/install_requirements.sh
