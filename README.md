@@ -5,10 +5,10 @@ An implementation of a neural machine translation system with a LSTM encoder-dec
 The authors of this project is Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
 
 # Results
-We managed to get a BLEU score of 47 on the Multi30k dataset
+We managed to get a BLEU score of X on the Multi30k dataset.
 
 ## Recreating results
-Run the program with configuration (final.json)
+Run the program with configuration (final.json).
 
 *python main.py --config final.json*
 
