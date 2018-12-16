@@ -29,11 +29,13 @@ def get_config(use_gpu, device, device_idx, **kwargs):
     config['PAD_token'] = PAD_token
     if args.name is not None:
         config['name'] = args.name
+    name = config.get('name')
     file_path = os.path.dirname(os.path.realpath(__file__))
-    weights_path = get_or_create_dir(file_path, f'.weights/{config.get("name")}')
-    config['weights_path'] = weights_path
+    config['weights_path'] = get_or_create_dir(file_path, f'.weights/{name}')
     if load_weights:
-        language_path = f'{weights_path}/language.json'
+        model_data_path = get_or_create_dir(file_path, f'model-data/{name}')
+        config['model_data_path'] = model_data_path
+        language_path = f'{model_data_path}/language.json'
         with open(language_path, 'r') as f:
             language_data = json.load(f)
         src_language = Language(language_data.get('source'))
@@ -68,10 +70,10 @@ def get_config(use_gpu, device, device_idx, **kwargs):
         config["decoder"] = config["decoder"].to(device)
         config["encoder"] = config["encoder"].to(device)
     if load_weights:
-        decoder_path = f'{weights_path}/decoder'
-        encoder_path = f'{weights_path}/encoder'
-        config['decoder'].load_state_dict(torch.load(decoder_path))
-        config['encoder'].load_state_dict(torch.load(encoder_path))
+        decoder_path = f'{model_data_path}/decoder'
+        encoder_path = f'{model_data_path}/encoder'
+        config['decoder'].load_state_dict(torch.load(decoder_path, map_location=device))
+        config['encoder'].load_state_dict(torch.load(encoder_path, map_location=device))
     config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
     config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
     config['window_size'] = config.get('attention').get('window_size')
