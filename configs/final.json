@@ -5,6 +5,7 @@
   "batch_size": 128,
   "epochs": 100,
   "gradient_clipping": false,
+  "input_feeding": true,
   "name": "final",
   "optimizer": {
     "learning_rate": 0.003,
