@@ -2,7 +2,7 @@
 An implementation of a neural machine translation system with a LSTM encoder-decoder plus attention architecture.
 
 # Authors
-The authors of this project is Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
+The authors of this project are Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
 
 # Results
 Below is a list of the result we got using different n-gram BLEU score evaluations:
@@ -11,8 +11,11 @@ Below is a list of the result we got using different n-gram BLEU score evaluatio
 * 3-gram: 30.04
 * 4-gram: 22.61
 
-## Recreating results
-Run the program with configuration (final.json).
+## Recreating the results
+To recreate and visualize the results run the Jupiter notebook *test.ipynb*
+
+## Training the model
+To train the model using the settings we used run the program with configuration final.json.
 
 *python main.py --config final.json*
 
