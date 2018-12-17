@@ -26,10 +26,6 @@ Navigate to the root folder of the project and run the following command in term
 
 The following arguments may then be added:
 
-* --config_path
-  + For specifying the path to the configurations folder
-* --load_weights
-  + For loading previously stored weights of model (boolean)
 * --config
   + Path to model configuration (defaults to 'configs/default.json')
 * --debug
