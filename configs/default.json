@@ -1,5 +1,6 @@
 {
   "attention": {
+    "enabled": true,
     "window_size": 3
   },
   "batch_size": 64,

@@ -1,7 +1,8 @@
 import argparse
 from data_loader import load_debug, load_dummy_fixed_length, load_dummy_variable_length, load_iwslt, load_multi30k
 import json
-from model import Encoder, Decoder
+from model import Model
+from model_without_attention import ModelWithoutAttention
 import os
 import torch
 import torch.nn as nn
@@ -64,21 +65,20 @@ def get_config(use_gpu, device, device_idx, **kwargs):
     config['SOS'] = trg_language.stoi[SOS_token]
     config['src_language'] = src_language
     config['trg_language'] = trg_language
-    config["decoder"] = Decoder(config, device)
-    config["encoder"] = Encoder(config, device)
-    if use_gpu:
-        config["decoder"] = config["decoder"].to(device)
-        config["encoder"] = config["encoder"].to(device)
-    if load_weights:
-        decoder_path = f'{model_data_path}/decoder'
-        encoder_path = f'{model_data_path}/encoder'
-        config['decoder'].load_state_dict(torch.load(decoder_path, map_location=device))
-        config['encoder'].load_state_dict(torch.load(encoder_path, map_location=device))
-    config['encoder_optimizer'] = get_optimizer(config.get('optimizer'), config['encoder'])
-    config['decoder_optimizer'] = get_optimizer(config.get('optimizer'), config['decoder'])
     config['window_size'] = config.get('attention').get('window_size')
-    config['loss_fn'] = nn.CrossEntropyLoss()
     config['input_feeding'] = config.get('input_feeding', False)
+    config['use_attention'] = config.get('attention').get('enabled', True)
+    if config.get('use_attention'):
+        config['model'] = Model(config, device)
+    else:
+        config['model'] = ModelWithoutAttention(config, device)
+    if use_gpu:
+        config["model"] = config["model"].to(device)
+    if load_weights:
+        model_path = f'{model_data_path}/model'
+        config['model'].load_state_dict(torch.load(model_path, map_location=device))
+    config['optimizer'] = get_optimizer(config.get('optimizer'), config['model'])
+    config['loss_fn'] = nn.CrossEntropyLoss()
     return config
 
 

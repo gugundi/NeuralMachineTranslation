@@ -1,4 +1,5 @@
 import math
+from random import random
 import torch
 import torch.nn as nn
 
@@ -10,6 +11,8 @@ class Encoder(nn.Module):
         rnn_config = config.get('rnn')
         source_vocabulary_size = config.get('source_vocabulary_size')
         dropout = rnn_config.get('dropout')
+        self.window_size = config.get('window_size')
+        self.pad = config.get('PAD_src')
         self.device = device
         self.hidden_size = rnn_config.get('hidden_size')
         self.num_layers = rnn_config.get('num_layers')
@@ -25,10 +28,43 @@ class Encoder(nn.Module):
             dropout=dropout,
         )
 
-    def forward(self, source_sentence):
-        embedded = self.embedding(source_sentence)
+    def forward(self, batch):
+        source_batch, source_lengths = batch.src
+        target_batch, _ = batch.trg
+        batch_size = source_batch.shape[1]
+        S = source_batch.size(0)
+        T = target_batch.size(0)
+        input = self.pad_with_window_size(source_batch)
+        embedded = self.embedding(input)
         output, hidden = self.lstm(embedded)
-        return output, hidden
+        context_indices = self.window_size + source_lengths - 1
+        # select last word of encoded output
+        context = torch.empty((1, batch_size, hidden[0].shape[2]), device=self.device)
+        for i in range(batch_size):
+            index = context_indices[i]
+            context[0, i] = output[index, i]
+        return output, hidden, context, S, T, batch_size
+
+    def pad_with_window_size(self, batch):
+        size = batch.size()
+        n = len(size)
+        if n == 2:
+            length, batch_size = size
+            padded_length = length + (2 * self.window_size + 1)
+            padded = torch.empty((padded_length, batch_size), dtype=torch.long, device=self.device)
+            padded[:self.window_size, :] = self.pad
+            padded[self.window_size:self.window_size+length, :] = batch
+            padded[-(self.window_size+1):, :] = self.pad
+        elif n == 3:
+            length, batch_size, hidden = size
+            padded_length = length + (2 * self.window_size + 1)
+            padded = torch.empty((padded_length, batch_size, hidden), dtype=torch.long, device=self.device)
+            padded[:self.window_size, :, :] = self.pad
+            padded[self.window_size:self.window_size+length, :, :] = batch
+            padded[-(self.window_size+1):, :, :] = self.pad
+        else:
+            raise Exception(f'Cannot pad batch with {n} dimensions.')
+        return padded
 
 
 class Decoder(nn.Module):
@@ -202,3 +238,79 @@ class Attention(nn.Module):
         # h_t : batch x T x hidden
         h_s = h_s.transpose(1, 2)
         return torch.bmm(h_t, h_s)
+
+
+class Model(nn.Module):
+
+    def __init__(self, config, device):
+        super(Model, self).__init__()
+        self.device = device
+        self.encoder = Encoder(config, device)
+        self.decoder = Decoder(config, device)
+        self.teacher_forcing = config.get('teacher_forcing')
+        self.eos = config.get('EOS')
+        self.sos = config.get('SOS')
+        self.pad_trg = config.get('PAD_trg')
+        self.target_vocabulary_size = config.get('target_vocabulary_size')
+
+    def decode(self, encoder_output, input, hidden, context, lengths, batch_size, output_weights):
+        decoded = self.decoder(encoder_output, input, hidden, context, lengths, output_weights)
+        if output_weights:
+            y, hidden, context, attention = decoded
+        else:
+            y, hidden, context = decoded
+        _, topi = y.topk(1)
+        input = topi.detach().view(1, batch_size)
+        context = context.detach()
+        y = y.view(batch_size, -1)
+        if output_weights:
+            return y, input, hidden, context, attention
+        else:
+            return y, input, hidden, context
+
+    def forward(self, batch, **kwargs):
+        training = kwargs.get('training', True)
+        sample = kwargs.get('sample', False)
+        encoder_output, hidden, context, S, T, batch_size = self.encoder(batch)
+        _, source_lengths = batch.src
+        target_batch, _ = batch.trg
+
+        ys = torch.empty(T, batch_size, self.target_vocabulary_size, dtype=torch.float, device=self.device)
+        if training:
+            input = target_batch[0].unsqueeze(0)
+            for i in range(T):
+                if i != 0 and random() <= self.teacher_forcing:
+                    input = target_batch[i].unsqueeze(0)
+                y, input, hidden, context = self.decode(encoder_output, input, hidden, context, source_lengths, batch_size, False)
+                ys[i] = y
+            return ys
+        else:
+            _, source_lengths = batch.src
+            input = torch.tensor([[self.sos] * batch_size], device=self.device, dtype=torch.long)
+            translations = [[] for _ in range(batch_size)]
+            if sample:
+                first_sentence_has_reached_end = False
+                attention_weights = torch.zeros(0, source_lengths[0], device=self.device)
+            for i in range(T):
+                decoded = self.decode(encoder_output, input, hidden, context, source_lengths, batch_size, sample)
+                if sample:
+                    y, input, hidden, context, attention = decoded
+                else:
+                    y, input, hidden, context = decoded
+                ys[i] = y
+
+                for j in range(batch_size):
+                    translations[j].append(input[0, j].item())
+
+                if sample:
+                    # don't add padding to attention visualiation
+                    decoded_word = translations[0][i]
+                    if not first_sentence_has_reached_end and decoded_word != self.pad_trg:
+                        # add attention weights of first sentence in batch
+                        attention_weights = torch.cat((attention_weights, attention))
+                        first_sentence_has_reached_end = decoded_word == self.eos
+
+            if sample:
+                return ys, translations, attention_weights
+            else:
+                return ys, translations

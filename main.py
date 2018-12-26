@@ -2,11 +2,10 @@ from bleu import compute_bleu
 from device import select_device, with_cpu, with_gpu
 import json
 from parse import get_config
-from random import random, sample
+from random import sample
 from tensorboardX import SummaryWriter
 import torchtext
 import torch
-import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
 from utils import filter_words, get_or_create_dir, get_text, list2words, torch2words
 from visualize import visualize_attention
@@ -70,6 +69,7 @@ def train(config, sample_validation_batches):
     training = config.get('training')
     eval_every = training.get('eval_every')
     sample_every = training.get('sample_every')
+    use_attention = config.get('use_attention')
     step = 1
     for epoch in range(epochs):
         print(f'Epoch: {epoch+1}/{epochs}')
@@ -101,7 +101,6 @@ def train(config, sample_validation_batches):
                 writer_val.add_scalar('loss', val_loss, step)
 
             if step % sample_every == 0:
-                # batch_size = config.get('batch_size')
                 val_batch = sample_validation_batches(1)
                 val_batch_src, val_lengths_src = val_batch.src
                 val_batch_trg, _ = val_batch.trg
@@ -110,164 +109,48 @@ def train(config, sample_validation_batches):
                 source_words = torch2words(source_language, val_batch_src[:, 0])
                 target_words = torch2words(target_language, val_batch_trg[:, 0])
                 translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
-                if sum(attention_weights.shape) != 0:
+                if use_attention and sum(attention_weights.shape) != 0:
                     attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
                     writer_val.add_figure('attention', attention_figure, step)
                 text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
                 writer_val.add_text('translation', text, step)
 
             step += 1
+
     save_weights(config)
 
 
 def train_batch(config, batch):
-    encoder, decoder = config.get('encoder'), config.get('decoder')
-    encoder_optimizer, decoder_optimizer = config.get('encoder_optimizer'), config.get('decoder_optimizer')
-    PAD = config.get('PAD_src')
-    SOS = config.get('SOS')
-    window_size = config.get('window_size')
-    loss_fn = config.get('loss_fn')
+    model = config.get('model')
+    optimizer = config.get('optimizer')
     gradient_clipping = config.get('gradient_clipping')
-    teacher_forcing = config.get('teacher_forcing')
 
-    encoder.train()
-    decoder.train()
+    model.train()
+    ys = model(batch)
+    loss = get_loss(config, batch, ys)
 
-    _, source_lengths = batch.src
-    target_batch, target_lengths = batch.trg
-    _, batch_size = target_batch.size()
-    mask = create_mask(batch.trg)
-    encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, source_lengths, PAD)
-    hidden = encoder_hidden
-
-    input = target_batch[0].unsqueeze(0)
-    losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
-    for i in range(T):
-        if i != 0 and random() <= teacher_forcing:
-            input = target_batch[i].unsqueeze(0)
-        y, input, hidden, context = decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size)
-        losses[i] = loss_fn(y, target_batch[i])
-    loss = compute_batch_loss(losses, mask, target_lengths)
-
-    encoder_optimizer.zero_grad()
-    decoder_optimizer.zero_grad()
+    optimizer.zero_grad()
     loss.backward()
     if gradient_clipping:
-        clip_grad_norm_(encoder.parameters(), 1)
-        clip_grad_norm_(decoder.parameters(), 1)
-    encoder_optimizer.step()
-    decoder_optimizer.step()
+        clip_grad_norm_(model.parameters(), 1)
+    optimizer.step()
 
     return with_cpu(loss)
 
 
 def evaluate_batch(config, batch, sample=False):
-    encoder, decoder = config.get('encoder'), config.get('decoder')
-    EOS = config.get('EOS')
-    PAD_src = config.get('PAD_src')
-    PAD_trg = config.get('PAD_trg')
-    SOS = config.get('SOS')
-    window_size = config.get('attention').get('window_size')
-    loss_fn = config.get('loss_fn')
+    model = config.get('model')
 
     with torch.no_grad():
-        encoder.eval()
-        decoder.eval()
-
-        _, source_lengths = batch.src
-        target_batch, target_lengths = batch.trg
-        batch_size = target_batch.size()[1]
-        mask = create_mask(batch.trg)
-        encoder_output, encoder_hidden, context, S, T = encode(encoder, batch, window_size, source_lengths, PAD_src)
-
-        input = with_gpu(torch.LongTensor([[SOS] * batch_size]))
-        hidden = encoder_hidden
-
-        losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
-        translations = [[] for _ in range(batch_size)]
+        model.eval()
         if sample:
-            first_sentence_has_reached_end = False
-            attention_weights = with_gpu(torch.zeros(0, source_lengths[0]))
-        for i in range(T):
-            if sample:
-                y, input, hidden, context, attention = (
-                    decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size, sample)
-                )
-            else:
-                y, input, hidden, context = decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size, sample)
-            compute_word_loss(losses, i, y, target_batch, loss_fn)
-
-            for j in range(batch_size):
-                translations[j].append(input[0, j].item())
-
-            if sample:
-                # don't add padding to attention visualiation
-                decoded_word = translations[0][i]
-                if not first_sentence_has_reached_end and decoded_word != PAD_trg:
-                    # add attention weights of first sentence in batch
-                    attention_weights = torch.cat((attention_weights, attention))
-                    first_sentence_has_reached_end = decoded_word == EOS
-        loss = compute_batch_loss(losses, mask, target_lengths)
-
-        if sample:
+            ys, translations, attention_weights = model(batch, training=False, sample=True)
+            loss = get_loss(config, batch, ys)
             return with_cpu(loss), translations, with_cpu(attention_weights)
         else:
+            ys, translations = model(batch, training=False, sample=False)
+            loss = get_loss(config, batch, ys)
             return with_cpu(loss), translations
-
-
-def encode(encoder, batch, window_size, lengths, PAD):
-    source_batch, _ = batch.src
-    target_batch, _ = batch.trg
-    batch_size = source_batch.shape[1]
-    S = source_batch.size(0)
-    T = target_batch.size(0)
-    input = pad_with_window_size(source_batch, window_size, PAD)
-    output, hidden = encoder(input)
-    context_indices = window_size + lengths - 1
-    # select last word of encoded output
-    context = with_gpu(torch.empty((1, batch_size, hidden[0].shape[2])))
-    for i in range(batch_size):
-        index = context_indices[i]
-        context[0, i] = output[index, i]
-    return output, hidden, context, S, T
-
-
-def decode_word(decoder, encoder_output, input, hidden, context, lengths, batch_size, output_weights=False):
-    decoded = decoder(encoder_output, input, hidden, context, lengths, output_weights)
-    if output_weights:
-        y, hidden, context, attention = decoded
-    else:
-        y, hidden, context = decoded
-    _, topi = y.topk(1)
-    input = topi.detach().view(1, batch_size)
-    context = context.detach()
-    y = y.view(batch_size, -1)
-    if output_weights:
-        return y, input, hidden, context, attention
-    else:
-        return y, input, hidden, context
-
-
-def pad_with_window_size(batch, window_size, pad):
-    size = batch.size()
-    n = len(size)
-    if n == 2:
-        length, batch_size = size
-        padded_length = length + (2 * window_size + 1)
-        padded = with_gpu(torch.empty((padded_length, batch_size), dtype=torch.long))
-        padded[:window_size, :] = pad
-        padded[window_size:window_size+length, :] = batch
-        padded[-(window_size+1):, :] = pad
-    elif n == 3:
-        length, batch_size, hidden = size
-        padded_length = length + (2 * window_size + 1)
-        padded = with_gpu(torch.empty((padded_length, batch_size, hidden), dtype=torch.long))
-        padded[:window_size, :, :] = pad
-        padded[window_size:window_size+length, :, :] = batch
-        padded[-(window_size+1):, :, :] = pad
-    else:
-        raise Exception(f'Cannot pad batch with {n} dimensions.')
-    return padded
 
 
 def create_mask(batch_tuple):
@@ -279,11 +162,6 @@ def create_mask(batch_tuple):
     return mask
 
 
-def compute_word_loss(losses, ith_word, y, target_batch, loss_fn):
-    target = target_batch[ith_word]
-    losses[ith_word] = loss_fn(y, target)
-
-
 def compute_batch_loss(loss, mask, lengths):
     loss = loss * mask
     loss = torch.sum(loss, 0, dtype=torch.float)
@@ -292,16 +170,24 @@ def compute_batch_loss(loss, mask, lengths):
     return loss
 
 
+def get_loss(config, batch, ys):
+    loss_fn = config.get('loss_fn')
+    mask = create_mask(batch.trg)
+    target_batch, target_lengths = batch.trg
+    T, batch_size = target_batch.shape
+    losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
+    for i in range(T):
+        losses[i] = loss_fn(ys[i], target_batch[i])
+    loss = compute_batch_loss(losses, mask, target_lengths)
+    return loss
+
+
 def save_weights(config):
     weights_path = config.get("weights_path")
-    decoder_path = f'{weights_path}/decoder'
-    decoder = config.get('decoder')
-    decoder_weights = decoder.state_dict()
-    encoder_path = f'{weights_path}/encoder'
-    encoder = config.get('encoder')
-    encoder_weights = encoder.state_dict()
-    torch.save(decoder_weights, decoder_path)
-    torch.save(encoder_weights, encoder_path)
+    model_path = f'{weights_path}/model'
+    model = config.get('model')
+    model_weights = model.state_dict()
+    torch.save(model_weights, model_path)
 
 
 if __name__ == '__main__':
