@@ -2,7 +2,7 @@ from bleu import compute_bleu
 from device import select_device, with_cpu, with_gpu
 import json
 from parse import get_config
-from random import sample
+from random import random, sample
 from tensorboardX import SummaryWriter
 import torchtext
 import torch
@@ -143,6 +143,8 @@ def train_batch(config, batch):
     input = target_batch[0].unsqueeze(0)
     losses = with_gpu(torch.empty((T, batch_size), dtype=torch.float))
     for i in range(T):
+        if i != 0 and random() <= teacher_forcing:
+            input = target_batch[i].unsqueeze(0)
         y, input, hidden, context = decode_word(decoder, encoder_output, input, hidden, context, source_lengths, batch_size)
         losses[i] = loss_fn(y, target_batch[i])
     loss = compute_batch_loss(losses, mask, target_lengths)
@@ -238,6 +240,7 @@ def decode_word(decoder, encoder_output, input, hidden, context, lengths, batch_
         y, hidden, context = decoded
     _, topi = y.topk(1)
     input = topi.detach().view(1, batch_size)
+    context = context.detach()
     y = y.view(batch_size, -1)
     if output_weights:
         return y, input, hidden, context, attention
