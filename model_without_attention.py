@@ -105,7 +105,7 @@ class ModelWithoutAttention(nn.Module):
             input = target_batch[0].unsqueeze(0)
             for i in range(T):
                 if i != 0 and random() <= self.teacher_forcing:
-                    input = target_batch[i].unsqueeze(0)
+                    input = target_batch[i-1].unsqueeze(0)
                 y, input, hidden = self.decode(input, context, hidden, batch_size)
                 ys[i] = y
             return ys

@@ -77,12 +77,12 @@ def create_iwslt():
 
 
 def create_multi30k():
-    with open('.data/multi30k/train.de') as f:
+    with open('.data/multi30k/train.en') as f:
         train_src = f.readlines()
         train_src = map(lambda sentence: sentence.replace('\n', ''), train_src)
         train_src = filter(lambda sentence: sentence != '', train_src)
         train_src = list(train_src)
-    with open('.data/multi30k/train.en') as f:
+    with open('.data/multi30k/train.de') as f:
         train_trg = f.readlines()
         train_trg = map(lambda sentence: sentence.replace('\n', ''), train_trg)
         train_trg = filter(lambda sentence: sentence != '', train_trg)
@@ -90,12 +90,12 @@ def create_multi30k():
     train = {"src": train_src, "trg": train_trg}
     train = pd.DataFrame(train, columns=['src', 'trg'])
 
-    with open('.data/multi30k/val.de') as f:
+    with open('.data/multi30k/val.en') as f:
         val_src = f.readlines()
         val_src = map(lambda sentence: sentence.replace('\n', ''), val_src)
         val_src = filter(lambda sentence: sentence != '', val_src)
         val_src = list(val_src)
-    with open('.data/multi30k/val.en') as f:
+    with open('.data/multi30k/val.de') as f:
         val_trg = f.readlines()
         val_trg = map(lambda sentence: sentence.replace('\n', ''), val_trg)
         val_trg = filter(lambda sentence: sentence != '', val_trg)
@@ -103,12 +103,12 @@ def create_multi30k():
     val = {"src": val_src, "trg": val_trg}
     val = pd.DataFrame(val, columns=['src', 'trg'])
 
-    with open('.data/multi30k/test2016.de') as f:
+    with open('.data/multi30k/test2016.en') as f:
         test_src = f.readlines()
         test_src = map(lambda sentence: sentence.replace('\n', ''), test_src)
         test_src = filter(lambda sentence: sentence != '', test_src)
         test_src = list(test_src)
-    with open('.data/multi30k/test2016.en') as f:
+    with open('.data/multi30k/test2016.de') as f:
         test_trg = f.readlines()
         test_trg = map(lambda sentence: sentence.replace('\n', ''), test_trg)
         test_trg = filter(lambda sentence: sentence != '', test_trg)

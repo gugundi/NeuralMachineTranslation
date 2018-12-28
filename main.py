@@ -110,7 +110,7 @@ def train(config, sample_validation_batches):
                 target_words = torch2words(target_language, val_batch_trg[:, 0])
                 translation_words = list(filter(lambda word: word != PAD_token, list2words(target_language, translations[0])))
                 if use_attention and sum(attention_weights.shape) != 0:
-                    attention_figure = visualize_attention(source_words[:s0], translation_words, attention_weights)
+                    attention_figure = visualize_attention(source_words[:s0], translation_words, with_cpu(attention_weights))
                     writer_val.add_figure('attention', attention_figure, step)
                 text = get_text(source_words, target_words, translation_words, SOS_token, EOS_token, PAD_token)
                 writer_val.add_text('translation', text, step)
@@ -146,7 +146,7 @@ def evaluate_batch(config, batch, sample=False):
         if sample:
             ys, translations, attention_weights = model(batch, training=False, sample=True)
             loss = get_loss(config, batch, ys)
-            return with_cpu(loss), translations, with_cpu(attention_weights)
+            return with_cpu(loss), translations, attention_weights
         else:
             ys, translations = model(batch, training=False, sample=False)
             loss = get_loss(config, batch, ys)

@@ -280,7 +280,7 @@ class Model(nn.Module):
             input = target_batch[0].unsqueeze(0)
             for i in range(T):
                 if i != 0 and random() <= self.teacher_forcing:
-                    input = target_batch[i].unsqueeze(0)
+                    input = target_batch[i-1].unsqueeze(0)
                 y, input, hidden, context = self.decode(encoder_output, input, hidden, context, source_lengths, batch_size, False)
                 ys[i] = y
             return ys
