@@ -1,13 +1,13 @@
 {
   "attention": {
-    "enabled": false,
+    "enabled": true,
     "window_size": 7
   },
   "batch_size": 128,
   "epochs": 50,
   "gradient_clipping": false,
   "input_feeding": true,
-  "name": "tmp-without-attention-1",
+  "name": "with-attention-6",
   "optimizer": {
     "learning_rate": 0.003,
     "type": "Adam",
@@ -15,12 +15,12 @@
   },
   "rnn": {
     "dropout": 0,
-    "hidden_size": 256,
-    "num_layers": 2
+    "hidden_size": 64,
+    "num_layers": 1
   },
   "source_vocabulary_size": 25000,
   "target_vocabulary_size": 25000,
-  "teacher_forcing": 0.5,
+  "teacher_forcing": 1,
   "training": {
     "eval_every": 500,
     "sample_every": 500
