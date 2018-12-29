@@ -78,7 +78,7 @@ def train(config, sample_validation_batches):
             loss = train_batch(config, training_batch)
             writer_train.add_scalar('loss', loss, step)
 
-            if step % eval_every == 0:
+            if step == 1 or step % eval_every == 0:
                 val_lengths = 0
                 val_losses = 0
                 reference_corpus = []
