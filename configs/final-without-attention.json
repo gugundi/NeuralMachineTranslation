@@ -1,13 +1,13 @@
 {
   "attention": {
-    "enabled": true,
+    "enabled": false,
     "window_size": 7
   },
   "batch_size": 128,
   "epochs": 11,
   "gradient_clipping": false,
   "input_feeding": true,
-  "name": "final",
+  "name": "final-without-attention",
   "optimizer": {
     "learning_rate": 0.003,
     "type": "Adam",
