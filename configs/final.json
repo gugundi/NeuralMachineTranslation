@@ -4,7 +4,7 @@
     "window_size": 7
   },
   "batch_size": 128,
-  "epochs": 11,
+  "epochs": 14,
   "gradient_clipping": false,
   "input_feeding": true,
   "name": "final",
@@ -22,7 +22,7 @@
   "target_vocabulary_size": 25000,
   "teacher_forcing": 0.75,
   "training": {
-    "eval_every": 500,
+    "eval_every": 100,
     "sample_every": 500
   }
 }
