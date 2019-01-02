@@ -5,7 +5,7 @@ An implementation of a neural machine translation system with a LSTM encoder-dec
 The authors of this project are Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
 
 # Results
-We got a BLEU score of *30.37* using local attention versus *16.62* with no attention mechanism.
+We got a BLEU score of **30.37** using local attention versus **16.62** with no attention mechanism.
 
 ## Recreating the results
 To recreate and visualize the results run the Jupiter notebook *test.ipynb*
