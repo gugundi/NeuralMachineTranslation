@@ -5,11 +5,7 @@ An implementation of a neural machine translation system with a LSTM encoder-dec
 The authors of this project are Gabriel Kihembo Enemark-Broholm, Christoffer Øhrstrøm and Oldouz Majidi.
 
 # Results
-Below is a list of the result we got using different n-gram BLEU score evaluations:
-* 1-gram: 56.37
-* 2-gram: 40.74
-* 3-gram: 30.04
-* 4-gram: 22.61
+We got a BLEU score of 30.37 using local attention versus 16.62 with no attention mechanism.
 
 ## Recreating the results
 To recreate and visualize the results run the Jupiter notebook *test.ipynb*
